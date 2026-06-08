@@ -1,28 +1,32 @@
-FROM alpine:3.14 as builder
+FROM alpine:3.14 AS builder
 
 ENV TZ=Asia/Shanghai
 ARG TAG=actions
+ARG ZEROTIER_REPO=https://github.com/zerotier/ZeroTierOne.git
+ARG ZTNCUI_REPO=https://github.com/key-networks/ztncui.git
+ARG ZTNCUI_REF=master
 ENV TAG=${TAG}
 
 WORKDIR /app
-ADD ./patch/entrypoint.sh /app/entrypoint.sh
-ADD ./patch/http_server.js /app/http_server.js
-ADD ./patch/mkworld_custom.cpp /app/patch/mkworld_custom.cpp
+ADD ./container/entrypoint.sh /app/entrypoint.sh
+ADD ./container/portal_server.js /app/portal_server.js
+ADD ./container/mkworld_custom.cpp /app/container/mkworld_custom.cpp
+ADD ./portal /app/portal
 
-# init tool
+# Build dependencies
 RUN set -x\
     && apk update\
     && apk add --no-cache git python3 npm make g++ linux-headers curl pkgconfig openssl-dev jq build-base gcc cmake go \
     && echo "env prepare success!"
 
-# make zerotier-one
+# Build ZeroTierOne and custom mkworld
 RUN set -x\
     && curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y\
-    && source "$HOME/.cargo/env"\
-    && git clone https://github.com/zerotier/ZeroTierOne.git\
+    && . "$HOME/.cargo/env"\
+    && git clone ${ZEROTIER_REPO}\
     && cd ZeroTierOne\
     && git checkout ${TAG}\
-    && echo "切换到tag:${TAG}"\
+    && echo "checkout ZeroTierOne ref:${TAG}"\
     && make ZT_SYMLINK=1 \
     && make -j\
     && make install\
@@ -32,7 +36,7 @@ RUN set -x\
     && (ps -ef |grep zerotier-one |grep -v grep |awk '{print $1}' |xargs kill -9 || true)\
     && echo "zerotier-one init success!"\
     && cd /app/ZeroTierOne/attic/world \
-    && cp /app/patch/mkworld_custom.cpp .\
+    && cp /app/container/mkworld_custom.cpp .\
     && mv mkworld.cpp mkworld.cpp.bak \
     && mv mkworld_custom.cpp mkworld.cpp \
     && sh build.sh \
@@ -42,11 +46,13 @@ RUN set -x\
 
 
 
-#make ztncui 
+# Install ztncui
 RUN set -x \
     && mkdir /app -p \
     &&  cd /app \
-    && git clone --progress https://github.com/key-networks/ztncui.git\
+    && git clone --progress ${ZTNCUI_REPO}\
+    && cd /app/ztncui \
+    && git checkout ${ZTNCUI_REF} \
     && cd /app/ztncui/src \
     && npm config set registry https://registry.npmmirror.com\
     && npm install -g node-gyp\
@@ -72,7 +78,8 @@ COPY --from=builder /var/lib/zerotier-one /bak/zerotier-one
 
 COPY --from=builder /app/ZeroTierOne/zerotier-one /usr/sbin/zerotier-one
 COPY --from=builder /app/entrypoint.sh /app/entrypoint.sh
-COPY --from=builder /app/http_server.js /app/http_server.js
+COPY --from=builder /app/portal_server.js /app/portal_server.js
+COPY --from=builder /app/portal /app/portal
 
 RUN set -x \
     && apk update \

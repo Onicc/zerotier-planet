@@ -1,0 +1,215 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>ZeroTier Planet Portal</title>
+    <link rel="stylesheet" href="/styles.css">
+  </head>
+  <body>
+    <header class="topbar">
+      <a class="brand" href="#overview" aria-label="ZeroTier Planet Portal">
+        <span class="brand-mark">ZP</span>
+        <span>
+          <strong>ZeroTier Planet</strong>
+          <small>Private network bootstrap</small>
+        </span>
+      </a>
+      <nav class="nav" aria-label="Primary">
+        <a href="#overview">Overview</a>
+        <a href="#downloads">Downloads</a>
+        <a href="#clients">Clients</a>
+        <a href="#guide">Guide</a>
+      </nav>
+      <a class="console-link" id="consoleLink" href="#" target="_blank" rel="noreferrer">Open controller</a>
+    </header>
+
+    <main>
+      <section class="hero band" id="overview">
+        <div class="hero-copy">
+          <p class="eyebrow">Self-hosted PLANET console</p>
+          <h1>Ship a private ZeroTier root with fewer manual steps.</h1>
+          <p class="hero-text">
+            Generate short-lived planet links, hand clients a single install command,
+            and keep ztncui focused on network administration.
+          </p>
+          <div class="hero-actions">
+            <a class="primary-action" href="#downloads">Create client links</a>
+            <a class="secondary-action" id="heroConsoleLink" href="#" target="_blank" rel="noreferrer">Manage networks</a>
+          </div>
+        </div>
+        <div class="network-visual" aria-hidden="true">
+          <img src="/assets/zerotier-network.png" alt="">
+        </div>
+      </section>
+
+      <section class="status-strip" aria-live="polite">
+        <div>
+          <span class="label">Planet</span>
+          <strong id="planetState">Checking</strong>
+        </div>
+        <div>
+          <span class="label">ZeroTier port</span>
+          <strong id="ztPort">--</strong>
+        </div>
+        <div>
+          <span class="label">Controller</span>
+          <strong id="apiPort">--</strong>
+        </div>
+        <div>
+          <span class="label">Link lifetime</span>
+          <strong id="ttlState">--</strong>
+        </div>
+      </section>
+
+      <section class="band split" id="downloads">
+        <div>
+          <p class="eyebrow">Operator tools</p>
+          <h2>Temporary links for controlled rollout.</h2>
+          <p class="section-text">
+            Keep the long-lived server key private. Operators paste it once in this browser,
+            generate short-lived URLs, then distribute wget and install commands.
+          </p>
+        </div>
+
+        <div class="panel">
+          <label class="field">
+            <span>Server key</span>
+            <input id="adminKey" type="password" autocomplete="off" placeholder="Paste /app/config/file_server.key">
+          </label>
+          <label class="field compact-field">
+            <span>Lifetime</span>
+            <select id="ttl">
+              <option value="600">10 minutes</option>
+              <option value="1800">30 minutes</option>
+              <option value="3600">1 hour</option>
+            </select>
+          </label>
+          <div class="button-row">
+            <button class="button primary" id="saveKeyButton" type="button">Save locally</button>
+            <button class="button" id="refreshButton" type="button">Refresh status</button>
+          </div>
+          <p class="hint">The key is stored only in this browser's localStorage.</p>
+        </div>
+      </section>
+
+      <section class="tools-grid" aria-label="Client link tools">
+        <article class="tool-card">
+          <div>
+            <p class="tool-kicker">Planet file</p>
+            <h3>wget download</h3>
+            <p>Use this when a user already has ZeroTier installed and only needs the planet file.</p>
+          </div>
+          <pre><code id="wgetCommand">Generate a link first.</code></pre>
+          <div class="button-row">
+            <button class="button primary" id="planetLinkButton" type="button">Generate</button>
+            <button class="button" data-copy-target="wgetCommand" type="button">Copy</button>
+          </div>
+        </article>
+
+        <article class="tool-card">
+          <div>
+            <p class="tool-kicker">Linux</p>
+            <h3>Install and join</h3>
+            <p>Installs ZeroTier when missing, replaces planet, restarts the service, then asks for Network ID.</p>
+          </div>
+          <pre><code id="linuxCommand">Generate an installer first.</code></pre>
+          <div class="button-row">
+            <button class="button primary" id="linuxLinkButton" type="button">Generate</button>
+            <button class="button" data-copy-target="linuxCommand" type="button">Copy</button>
+          </div>
+        </article>
+
+        <article class="tool-card">
+          <div>
+            <p class="tool-kicker">macOS</p>
+            <h3>Replace and join</h3>
+            <p>Uses Homebrew when available, otherwise guides users to the official PKG installer.</p>
+          </div>
+          <pre><code id="macosCommand">Generate an installer first.</code></pre>
+          <div class="button-row">
+            <button class="button primary" id="macosLinkButton" type="button">Generate</button>
+            <button class="button" data-copy-target="macosCommand" type="button">Copy</button>
+          </div>
+        </article>
+      </section>
+
+      <section class="band" id="clients">
+        <div class="section-heading">
+          <p class="eyebrow">Client rollout</p>
+          <h2>One path for operators, one path for users.</h2>
+        </div>
+        <div class="workflow">
+          <div class="step">
+            <span>1</span>
+            <strong>Create a network</strong>
+            <p>Open ztncui, create a network, and copy the Network ID.</p>
+          </div>
+          <div class="step">
+            <span>2</span>
+            <strong>Generate a command</strong>
+            <p>Create a temporary Linux or macOS installer link from this portal.</p>
+          </div>
+          <div class="step">
+            <span>3</span>
+            <strong>Join and authorize</strong>
+            <p>The script asks for Network ID. Approve the new member in ztncui.</p>
+          </div>
+          <div class="step">
+            <span>4</span>
+            <strong>Verify peers</strong>
+            <p>Run zerotier-cli peers and confirm the PLANET role appears.</p>
+          </div>
+        </div>
+      </section>
+
+      <section class="band guide" id="guide">
+        <div class="section-heading">
+          <p class="eyebrow">Tutorial</p>
+          <h2>Deployment and client guide</h2>
+        </div>
+        <div class="guide-grid">
+          <article>
+            <h3>Deploy the server</h3>
+            <ol>
+              <li>Run deploy.sh and choose install.</li>
+              <li>Open the portal on the file server port.</li>
+              <li>Copy the server key from data/zerotier/config/file_server.key.</li>
+              <li>Open the controller and change the default password.</li>
+            </ol>
+          </article>
+          <article>
+            <h3>Create a network</h3>
+            <ol>
+              <li>Open ztncui from the controller button.</li>
+              <li>Create a network and configure the address pool.</li>
+              <li>Copy the Network ID for client enrollment.</li>
+              <li>Authorize new members after they run the installer.</li>
+            </ol>
+          </article>
+          <article>
+            <h3>Linux users</h3>
+            <ol>
+              <li>Copy the Linux command from this portal.</li>
+              <li>Run it in a terminal with sudo.</li>
+              <li>Enter the Network ID when prompted.</li>
+              <li>Wait for the operator to authorize the device.</li>
+            </ol>
+          </article>
+          <article>
+            <h3>macOS users</h3>
+            <ol>
+              <li>Install ZeroTier One first if Homebrew is not available.</li>
+              <li>Run the macOS command in Terminal.</li>
+              <li>Enter the Network ID when prompted.</li>
+              <li>Approve permissions requested by macOS if needed.</li>
+            </ol>
+          </article>
+        </div>
+      </section>
+    </main>
+
+    <div class="toast" id="toast" role="status" aria-live="polite"></div>
+    <script src="/app.js"></script>
+  </body>
+</html>

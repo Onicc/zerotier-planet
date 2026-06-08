@@ -5,8 +5,12 @@ ZEROTIER_PATH="$(pwd)/data/zerotier"
 CONFIG_PATH="${ZEROTIER_PATH}/config"
 DIST_PATH="${ZEROTIER_PATH}/dist"
 ZTNCUI_PATH="${ZEROTIER_PATH}/ztncui"
-DOCKER_IMAGE_THRID="xubiaolin/zerotier-planet:latest"
-DOCKER_IMAGE_SRC="xubiaolin/zerotier-planet:latest"
+DEFAULT_DOCKER_IMAGE=""
+if [ -n "${DOCKERHUB_USERNAME:-}" ]; then
+    DEFAULT_DOCKER_IMAGE="${DOCKERHUB_USERNAME}/zerotier-planet:latest"
+fi
+DOCKER_IMAGE_THRID="${DOCKER_IMAGE:-${DEFAULT_DOCKER_IMAGE}}"
+DOCKER_IMAGE_SRC="${DOCKER_IMAGE:-${DEFAULT_DOCKER_IMAGE}}"
 DOCKER_IMAGE=$DOCKER_IMAGE_THRID
 print_message() {
     local message=$1
@@ -14,6 +18,11 @@ print_message() {
     echo -e "\033[${color_code}m${message}\033[0m"
 }
 check_proxy(){
+if [ -z "${DOCKER_IMAGE}" ]; then
+    echo "请先设置镜像名称，例如：DOCKER_IMAGE=你的DockerHub用户名/zerotier-planet:latest ./deploy.sh"
+    echo "或设置 DOCKERHUB_USERNAME 后再运行部署脚本。"
+    exit 1
+fi
 # 检查daemon.json文件是否存在
 if [ -f /etc/docker/daemon.json ]; then
     echo "daemon.json 文件存在."
@@ -192,14 +201,17 @@ install() {
 
     echo "安装完成"
     echo "---------------------------"
-    echo "请访问 http://${ipv4}:${API_PORT} 进行配置"
+    echo "部署门户： http://${ipv4}:${FILE_PORT}"
+    echo "管理后台： http://${ipv4}:${API_PORT}"
     echo "默认用户名：admin"
     echo "默认密码：password"
     echo "请及时修改密码"
     echo "---------------------------"
     echo "moon配置和planet配置在 ${DIST_PATH} 目录下"
-    echo "moons 文件下载： http://${ipv4}:${FILE_PORT}/${MOON_NAME}?key=${KEY} "
-    echo "planet文件下载： http://${ipv4}:${FILE_PORT}/planet?key=${KEY} "
+    echo "文件服务管理密钥保存在： ${CONFIG_PATH}/file_server.key"
+    echo "可在部署门户生成临时下载链接和Linux/macOS客户端安装命令"
+    echo "兼容旧版下载： http://${ipv4}:${FILE_PORT}/planet?key=${KEY} "
+    echo "兼容旧版moon下载： http://${ipv4}:${FILE_PORT}/${MOON_NAME}?key=${KEY} "
     echo "---------------------------"
     echo "请放行以下端口：${ZT_PORT}/tcp,${ZT_PORT}/udp，${API_PORT}/tcp，${FILE_PORT}/tcp"
     echo "---------------------------"
@@ -304,14 +316,17 @@ info() {
     echo "---------------------------"
     print_message "以下端口的tcp和udp协议请放行：${ZT_PORT}，${API_PORT}，${FILE_PORT}" "32"
     echo "---------------------------"
-    echo "请访问 http://${ipv4}:${API_PORT} 进行配置"
+    echo "部署门户： http://${ipv4}:${FILE_PORT}"
+    echo "管理后台： http://${ipv4}:${API_PORT}"
     echo "默认用户名：admin"
     echo "默认密码：password"
     echo "请及时修改密码"
     echo "---------------------------"
     print_message "moon配置和planet配置在 ${DIST_PATH} 目录下" "32"
-    print_message "planet文件下载： http://${ipv4}:${FILE_PORT}/planet?key=${KEY} " "32"
-    print_message "moon文件下载： http://${ipv4}:${FILE_PORT}/${MOON_NAME}?key=${KEY} " "32"
+    print_message "文件服务管理密钥： ${CONFIG_PATH}/file_server.key" "32"
+    print_message "请在部署门户生成临时planet下载链接和客户端安装命令" "32"
+    print_message "兼容旧版planet文件下载： http://${ipv4}:${FILE_PORT}/planet?key=${KEY} " "32"
+    print_message "兼容旧版moon文件下载： http://${ipv4}:${FILE_PORT}/${MOON_NAME}?key=${KEY} " "32"
 }
 
 uninstall() {
