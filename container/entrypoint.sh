@@ -64,19 +64,28 @@ init_zerotier_data() {
     echo "$IP_ADDR6" > ${CONFIG_PATH}/ip_addr6
     echo "stableEndpoints=$stableEndpoints"
 
-    jq --argjson newEndpoints "$stableEndpoints" '.roots[0].stableEndpoints = $newEndpoints' moon.json > temp.json && mv temp.json moon.json
-    ./zerotier-idtool genmoon moon.json && mkdir -p moons.d && cp ./*.moon ./moons.d
-
-    ./mkworld
-    if [ $? -ne 0 ]; then
-        echo "mkmoonworld failed!"
-        exit 1
-    fi
-
     mkdir -p ${APP_PATH}/dist/
-    mv world.bin ${APP_PATH}/dist/planet
-    cp *.moon ${APP_PATH}/dist/
-    echo "mkmoonworld success!"
+    mkdir -p moons.d
+
+    jq --argjson newEndpoints "$stableEndpoints" '.roots[0].stableEndpoints = $newEndpoints' moon.json > temp.json && mv temp.json moon.json
+    ./zerotier-idtool genmoon moon.json || {
+        echo "moon generation failed!"
+        exit 1
+    }
+    MOON_FILE=$(ls ./*.moon | head -n 1)
+    cp "$MOON_FILE" ./moons.d/
+    cp "$MOON_FILE" ${APP_PATH}/dist/
+
+    jq --argjson newEndpoints "$stableEndpoints" \
+        '.worldType = "planet" | .id = "8eac90a" | .roots[0].stableEndpoints = $newEndpoints' \
+        moon.json > planet.json
+    rm -f 0000000008eac90a.moon
+    ./zerotier-idtool genmoon planet.json || {
+        echo "planet generation failed!"
+        exit 1
+    }
+    cp 0000000008eac90a.moon ${APP_PATH}/dist/planet
+    echo "world generation success!"
 }
 
 # 检查并初始化 ZeroTier

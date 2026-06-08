@@ -36,7 +36,7 @@ Default ports:
 ```text
 .
 ├── .github/workflows/       # Docker Hub publishing workflow
-├── container/               # Entrypoint, portal server, mkworld patch
+├── container/               # Container entrypoint and portal server
 ├── portal/                  # Deployment portal frontend
 │   └── assets/              # Portal static assets
 ├── Dockerfile

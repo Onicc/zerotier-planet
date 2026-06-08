@@ -10,7 +10,6 @@ ENV TAG=${TAG}
 WORKDIR /app
 ADD ./container/entrypoint.sh /app/entrypoint.sh
 ADD ./container/portal_server.js /app/portal_server.js
-ADD ./container/mkworld_custom.cpp /app/container/mkworld_custom.cpp
 ADD ./portal /app/portal
 
 # Build dependencies
@@ -19,7 +18,7 @@ RUN set -x\
     && apk add --no-cache git python3 npm make g++ linux-headers curl pkgconfig openssl-dev jq build-base gcc cmake go \
     && echo "env prepare success!"
 
-# Build ZeroTierOne and custom mkworld
+# Build ZeroTierOne
 RUN set -x\
     && curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y\
     && . "$HOME/.cargo/env"\
@@ -27,22 +26,16 @@ RUN set -x\
     && cd ZeroTierOne\
     && git checkout ${TAG}\
     && echo "checkout ZeroTierOne ref:${TAG}"\
-    && make ZT_SYMLINK=1 \
     && make -j\
-    && make install\
     && echo "make success!"\
-    && zerotier-one -d || true\
+    && ln -sf /app/ZeroTierOne/zerotier-one /usr/sbin/zerotier-one \
+    && (zerotier-one -d || true)\
     && sleep 5s\
     && (ps -ef |grep zerotier-one |grep -v grep |awk '{print $1}' |xargs kill -9 || true)\
-    && echo "zerotier-one init success!"\
-    && cd /app/ZeroTierOne/attic/world \
-    && cp /app/container/mkworld_custom.cpp .\
-    && mv mkworld.cpp mkworld.cpp.bak \
-    && mv mkworld_custom.cpp mkworld.cpp \
-    && sh build.sh \
     && mkdir -p /var/lib/zerotier-one \
-    && mv mkworld /var/lib/zerotier-one\
-    && echo "mkworld build success!"
+    && cp /app/ZeroTierOne/zerotier-one /var/lib/zerotier-one/ \
+    && ln -sf zerotier-one /var/lib/zerotier-one/zerotier-idtool \
+    && echo "zerotier-one init success!"
 
 
 
@@ -84,6 +77,8 @@ COPY --from=builder /app/portal /app/portal
 RUN set -x \
     && apk update \
     && apk add --no-cache npm curl jq openssl\
+    && ln -sf /usr/sbin/zerotier-one /usr/sbin/zerotier-cli \
+    && ln -sf /usr/sbin/zerotier-one /usr/sbin/zerotier-idtool \
     && mkdir /app/config -p 
 
 

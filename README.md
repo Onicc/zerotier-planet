@@ -36,7 +36,7 @@ zerotier-planet
 ```text
 .
 ├── .github/workflows/       # Docker Hub 自动发布
-├── container/               # 容器入口、Portal 服务、mkworld 补丁
+├── container/               # 容器入口和 Portal 服务
 ├── portal/                  # 部署门户前端
 │   └── assets/              # 门户静态资源
 ├── Dockerfile
