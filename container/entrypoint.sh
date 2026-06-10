@@ -7,15 +7,27 @@ ZEROTIER_PATH="/var/lib/zerotier-one"
 APP_PATH="/app"
 CONFIG_PATH="${APP_PATH}/config"
 BACKUP_PATH="/bak"
-ZTNCUI_PATH="${APP_PATH}/ztncui"
-ZTNCUI_SRC_PATH="${ZTNCUI_PATH}/src"
 
-# 启动 ZeroTier 和 ztncui
+# 启动 ZeroTier 和统一控制台
 start() {
-    echo "Start ztncui and zerotier"
+    echo "Start zerotier and console"
     cd $ZEROTIER_PATH && ./zerotier-one -p$(cat ${CONFIG_PATH}/zerotier-one.port) -d || exit 1
-    nohup node ${APP_PATH}/portal_server.js &> ${APP_PATH}/server.log & 
-    cd $ZTNCUI_SRC_PATH && npm start || exit 1
+    node ${APP_PATH}/portal_server.js || exit 1
+}
+
+ensure_zerotier_runtime() {
+    mkdir -p ${CONFIG_PATH}
+    if [ ! -f "${CONFIG_PATH}/zerotier-one.port" ]; then
+        echo "${ZT_PORT}" > ${CONFIG_PATH}/zerotier-one.port
+    fi
+
+    if [ ! -x "${ZEROTIER_PATH}/zerotier-one" ]; then
+        cp ${BACKUP_PATH}/zerotier-one/zerotier-one ${ZEROTIER_PATH}/zerotier-one
+        chmod +x ${ZEROTIER_PATH}/zerotier-one
+    fi
+
+    ln -sf zerotier-one ${ZEROTIER_PATH}/zerotier-idtool
+    ln -sf zerotier-one ${ZEROTIER_PATH}/zerotier-cli
 }
 
 # 检查文件服务器端口配置文件
@@ -41,8 +53,10 @@ init_zerotier_data() {
     ./zerotier-idtool generate identity.secret identity.public
     ./zerotier-idtool initmoon identity.public > moon.json
 
-    IP_ADDR4=${IP_ADDR4:-$(curl -s https://ipv4.icanhazip.com/)}
-    IP_ADDR6=${IP_ADDR6:-$(curl -s https://ipv6.icanhazip.com/)}
+    if [ "${AUTO_DETECT_IP:-false}" = "true" ]; then
+        IP_ADDR4=${IP_ADDR4:-$(curl -fsS --max-time 5 https://ipv4.icanhazip.com/ || true)}
+        IP_ADDR6=${IP_ADDR6:-$(curl -fsS --max-time 5 https://ipv6.icanhazip.com/ || true)}
+    fi
 
     echo "IP_ADDR4=$IP_ADDR4"
     echo "IP_ADDR6=$IP_ADDR6"
@@ -93,42 +107,12 @@ check_zerotier() {
     mkdir -p $ZEROTIER_PATH
     if [ "$(ls -A $ZEROTIER_PATH)" ]; then
         echo "$ZEROTIER_PATH is not empty, starting directly"
+        ensure_zerotier_runtime
     else
         init_zerotier_data
     fi
 }
 
-# 初始化 ztncui 数据
-init_ztncui_data() {
-    echo "Initializing ztncui data"
-    cp -r ${BACKUP_PATH}/ztncui/* $ZTNCUI_PATH
-
-    echo "Configuring ztncui"
-    mkdir -p ${CONFIG_PATH}
-    echo "${API_PORT}" > ${CONFIG_PATH}/ztncui.port
-    cd $ZTNCUI_SRC_PATH
-    echo "HTTP_PORT=${API_PORT}" > .env
-    echo 'NODE_ENV=production' >> .env
-    echo 'HTTP_ALL_INTERFACES=true' >> .env
-    echo "ZT_ADDR=localhost:${ZT_PORT}" >> .env
-    cp -v etc/default.passwd etc/passwd
-    TOKEN=$(cat ${ZEROTIER_PATH}/authtoken.secret)
-    echo "ZT_TOKEN=$TOKEN" >> .env
-    echo "ztncui configuration successful!"
-}
-
-# 检查并初始化 ztncui
-check_ztncui() {
-    mkdir -p $ZTNCUI_PATH
-    if [ "$(ls -A $ZTNCUI_PATH)" ]; then
-        echo "${API_PORT}" > ${CONFIG_PATH}/ztncui.port
-        echo "$ZTNCUI_PATH is not empty, starting directly"
-    else
-        init_ztncui_data
-    fi
-}
-
 check_file_server
 check_zerotier
-check_ztncui
 start

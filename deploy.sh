@@ -4,11 +4,7 @@ CONTAINER_NAME="myztplanet"
 ZEROTIER_PATH="$(pwd)/data/zerotier"
 CONFIG_PATH="${ZEROTIER_PATH}/config"
 DIST_PATH="${ZEROTIER_PATH}/dist"
-ZTNCUI_PATH="${ZEROTIER_PATH}/ztncui"
-DEFAULT_DOCKER_IMAGE=""
-if [ -n "${DOCKERHUB_USERNAME:-}" ]; then
-    DEFAULT_DOCKER_IMAGE="${DOCKERHUB_USERNAME}/zerotier-planet:latest"
-fi
+DEFAULT_DOCKER_IMAGE="${DOCKERHUB_USERNAME:-onicc}/zerotier-planet:latest"
 DOCKER_IMAGE_THRID="${DOCKER_IMAGE:-${DEFAULT_DOCKER_IMAGE}}"
 DOCKER_IMAGE_SRC="${DOCKER_IMAGE:-${DEFAULT_DOCKER_IMAGE}}"
 DOCKER_IMAGE=$DOCKER_IMAGE_THRID
@@ -17,10 +13,28 @@ print_message() {
     local color_code=$2
     echo -e "\033[${color_code}m${message}\033[0m"
 }
+
+read_container_file() {
+    local file_path=$1
+    docker exec ${CONTAINER_NAME} sh -c "cat ${file_path}" | tr -d '\r'
+}
+
+wait_for_container_file() {
+    local file_path=$1
+    local timeout=${2:-60}
+    local i
+    for ((i = 0; i < timeout; i++)); do
+        if docker exec ${CONTAINER_NAME} test -s "${file_path}" &>/dev/null; then
+            return 0
+        fi
+        sleep 1
+    done
+    return 1
+}
+
 check_proxy(){
 if [ -z "${DOCKER_IMAGE}" ]; then
-    echo "请先设置镜像名称，例如：DOCKER_IMAGE=你的DockerHub用户名/zerotier-planet:latest ./deploy.sh"
-    echo "或设置 DOCKERHUB_USERNAME 后再运行部署脚本。"
+    echo "请先设置镜像名称，例如：DOCKER_IMAGE=onicc/zerotier-planet:latest ./deploy.sh"
     exit 1
 fi
 # 检查daemon.json文件是否存在
@@ -152,8 +166,7 @@ install() {
     rm -rf ${ZEROTIER_PATH}
 
     ZT_PORT=$(read_port "请输入zerotier-planet要使用的端口号，例如9994: ")
-    API_PORT=$(read_port "请输入zerotier-planet的API端口号，例如3443: ")
-    FILE_PORT=$(read_port "请输入zerotier-planet的FILE端口号，例如3000: ")
+    FILE_PORT=$(read_port "请输入zerotier-planet统一控制台端口号，例如3000: ")
 
     read -p "是否自动获取公网IP地址?(y/n) " use_auto_ip
     if [[ "$use_auto_ip" =~ ^[Yy]$ ]]; then
@@ -170,8 +183,7 @@ install() {
 
     echo "---------------------------"
     echo "使用的端口号为：${ZT_PORT}"
-    echo "API端口号为：${API_PORT}"
-    echo "FILE端口号为：${FILE_PORT}"
+    echo "统一控制台端口号为：${FILE_PORT}"
     echo "IPv4地址为：${ipv4}"
     echo "IPv6地址为：${ipv6}"
     echo "---------------------------"
@@ -180,40 +192,36 @@ install() {
         --name ${CONTAINER_NAME} \
         -p ${ZT_PORT}:${ZT_PORT} \
         -p ${ZT_PORT}:${ZT_PORT}/udp \
-        -p ${API_PORT}:${API_PORT} \
         -p ${FILE_PORT}:${FILE_PORT} \
         -e IP_ADDR4=${ipv4} \
         -e IP_ADDR6=${ipv6} \
         -e ZT_PORT=${ZT_PORT} \
-        -e API_PORT=${API_PORT} \
         -e FILE_SERVER_PORT=${FILE_PORT} \
         -v ${DIST_PATH}:/app/dist \
-        -v ${ZTNCUI_PATH}:/app/ztncui \
         -v ${ZEROTIER_PATH}/one:/var/lib/zerotier-one \
         -v ${CONFIG_PATH}:/app/config \
         --restart unless-stopped \
         ${DOCKER_IMAGE}
 
-    sleep 10
-
-    KEY=$(docker exec -it ${CONTAINER_NAME} sh -c 'cat /app/config/file_server.key' | tr -d '\r')
-    MOON_NAME=$(docker exec -it ${CONTAINER_NAME} sh -c 'ls /app/dist | grep moon' | tr -d '\r')
+    if ! wait_for_container_file "/app/config/file_server.key" 90; then
+        echo "容器已启动，但管理密钥尚未生成，请执行 docker logs ${CONTAINER_NAME} 查看日志"
+        exit 1
+    fi
+    if ! wait_for_container_file "/app/dist/planet" 90; then
+        echo "容器已启动，但 planet 文件尚未生成，请执行 docker logs ${CONTAINER_NAME} 查看日志"
+        exit 1
+    fi
 
     echo "安装完成"
     echo "---------------------------"
-    echo "部署门户： http://${ipv4}:${FILE_PORT}"
-    echo "管理后台： http://${ipv4}:${API_PORT}"
-    echo "默认用户名：admin"
-    echo "默认密码：password"
-    echo "请及时修改密码"
+    echo "统一控制台： http://${ipv4}:${FILE_PORT}"
     echo "---------------------------"
     echo "moon配置和planet配置在 ${DIST_PATH} 目录下"
-    echo "文件服务管理密钥保存在： ${CONFIG_PATH}/file_server.key"
-    echo "可在部署门户生成临时下载链接和Linux/macOS客户端安装命令"
-    echo "兼容旧版下载： http://${ipv4}:${FILE_PORT}/planet?key=${KEY} "
-    echo "兼容旧版moon下载： http://${ipv4}:${FILE_PORT}/${MOON_NAME}?key=${KEY} "
+    echo "文件服务管理密钥读取命令： docker exec ${CONTAINER_NAME} cat /app/config/file_server.key"
+    echo "请使用文件服务管理密钥解锁统一控制台"
+    echo "可在统一控制台管理网络、授权成员、生成临时下载链接和Linux/macOS客户端安装命令"
     echo "---------------------------"
-    echo "请放行以下端口：${ZT_PORT}/tcp,${ZT_PORT}/udp，${API_PORT}/tcp，${FILE_PORT}/tcp"
+    echo "请放行以下端口：${ZT_PORT}/tcp,${ZT_PORT}/udp，${FILE_PORT}/tcp"
     echo "---------------------------"
 }
 
@@ -230,19 +238,15 @@ install_from_config() {
 
     ipv4=$(extract_config "ip_addr4")
     ipv6=$(extract_config "ip_addr6")
-    API_PORT=$(extract_config "ztncui.port")
     FILE_PORT=$(extract_config "file_server.port")
     ZT_PORT=$(extract_config "zerotier-one.port")
-    KEY=$(extract_config "file_server.key")
     MOON_NAME=$(ls ${DIST_PATH}/ | grep moon | tr -d '\r')
 
     echo "---------------------------"
     echo "ipv4:${ipv4}"
     echo "ipv6:${ipv6}"
-    echo "API_PORT:${API_PORT}"
     echo "FILE_PORT:${FILE_PORT}"
     echo "ZT_PORT:${ZT_PORT}"
-    echo "KEY:${KEY}"
     echo "MOON_NAME:${MOON_NAME}"
     echo "---------------------------"
 
@@ -250,15 +254,12 @@ install_from_config() {
         --name ${CONTAINER_NAME} \
         -p ${ZT_PORT}:${ZT_PORT} \
         -p ${ZT_PORT}:${ZT_PORT}/udp \
-        -p ${API_PORT}:${API_PORT} \
         -p ${FILE_PORT}:${FILE_PORT} \
         -e IP_ADDR4=${ipv4} \
         -e IP_ADDR6=${ipv6} \
         -e ZT_PORT=${ZT_PORT} \
-        -e API_PORT=${API_PORT} \
         -e FILE_SERVER_PORT=${FILE_PORT} \
         -v ${DIST_PATH}:/app/dist \
-        -v ${ZTNCUI_PATH}:/app/ztncui \
         -v ${ZEROTIER_PATH}/one:/var/lib/zerotier-one \
         -v ${CONFIG_PATH}:/app/config \
         --restart unless-stopped \
@@ -307,26 +308,17 @@ info() {
 
     ipv4=$(extract_config "ip_addr4")
     ipv6=$(extract_config "ip_addr6")
-    API_PORT=$(extract_config "ztncui.port")
     FILE_PORT=$(extract_config "file_server.port")
     ZT_PORT=$(extract_config "zerotier-one.port")
-    KEY=$(extract_config "file_server.key")
-    MOON_NAME=$(ls ${DIST_PATH}/ | grep moon | tr -d '\r')
-
     echo "---------------------------"
-    print_message "以下端口的tcp和udp协议请放行：${ZT_PORT}，${API_PORT}，${FILE_PORT}" "32"
+    print_message "请放行：${ZT_PORT}/tcp，${ZT_PORT}/udp，${FILE_PORT}/tcp" "32"
     echo "---------------------------"
-    echo "部署门户： http://${ipv4}:${FILE_PORT}"
-    echo "管理后台： http://${ipv4}:${API_PORT}"
-    echo "默认用户名：admin"
-    echo "默认密码：password"
-    echo "请及时修改密码"
+    echo "统一控制台： http://${ipv4}:${FILE_PORT}"
     echo "---------------------------"
     print_message "moon配置和planet配置在 ${DIST_PATH} 目录下" "32"
-    print_message "文件服务管理密钥： ${CONFIG_PATH}/file_server.key" "32"
-    print_message "请在部署门户生成临时planet下载链接和客户端安装命令" "32"
-    print_message "兼容旧版planet文件下载： http://${ipv4}:${FILE_PORT}/planet?key=${KEY} " "32"
-    print_message "兼容旧版moon文件下载： http://${ipv4}:${FILE_PORT}/${MOON_NAME}?key=${KEY} " "32"
+    print_message "文件服务管理密钥： docker exec ${CONTAINER_NAME} cat /app/config/file_server.key" "32"
+    print_message "请使用文件服务管理密钥解锁统一控制台" "32"
+    print_message "可在统一控制台管理网络、授权成员、生成临时planet下载链接和客户端安装命令" "32"
 }
 
 uninstall() {
@@ -344,34 +336,14 @@ uninstall() {
     echo "卸载完成"
 }
 
-resetpwd() {
-    docker exec -it ${CONTAINER_NAME} sh -c 'cp /app/ztncui/src/etc/default.passwd /app/ztncui/src/etc/passwd'
-    if [ $? -ne 0 ]; then
-        echo "重置密码失败"
-        exit 1
-    fi
-
-    docker restart ${CONTAINER_NAME}
-    if [ $? -ne 0 ]; then
-        echo "重启服务失败"
-        exit 1
-    fi
-
-    echo "--------------------------------"
-    echo "重置密码成功"
-    echo "当前用户名 admin, 密码为 password"
-    echo "--------------------------------"
-}
-
 menu() {
     echo "欢迎使用zerotier-planet脚本，请选择需要执行的操作："
     echo "1. 安装"
     echo "2. 卸载"
     echo "3. 更新"
     echo "4. 查看信息"
-    echo "5. 重置密码"
-    echo "6. CentOS内核升级"
-    echo "7. 检查是否设置代理"
+    echo "5. CentOS内核升级"
+    echo "6. 检查是否设置代理"
     echo "0. 退出"
     read -p "请输入数字：" num
     case "$num" in
@@ -379,11 +351,10 @@ menu() {
     2) uninstall ;;
     3) upgrade ;;
     4) info ;;
-    5) resetpwd ;;
-    6) update_centos_kernel ;;
-    7) check_proxy ;;
+    5) update_centos_kernel ;;
+    6) check_proxy ;;
     0) exit ;;
-    *) echo "请输入正确数字 [0-7]" ;;
+    *) echo "请输入正确数字 [0-6]" ;;
     esac
 }
 

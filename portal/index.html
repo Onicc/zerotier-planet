@@ -3,211 +3,448 @@
   <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>ZeroTier Planet Portal</title>
+    <title>ZeroTier Planet Console</title>
     <link rel="stylesheet" href="/styles.css">
   </head>
   <body>
-    <header class="topbar">
-      <a class="brand" href="#overview" aria-label="ZeroTier Planet Portal">
-        <span class="brand-mark">ZP</span>
-        <span>
-          <strong>ZeroTier Planet</strong>
-          <small>Private network bootstrap</small>
-        </span>
-      </a>
-      <nav class="nav" aria-label="Primary">
-        <a href="#overview">Overview</a>
-        <a href="#downloads">Downloads</a>
-        <a href="#clients">Clients</a>
-        <a href="#guide">Guide</a>
-      </nav>
-      <a class="console-link" id="consoleLink" href="#" target="_blank" rel="noreferrer">Open controller</a>
-    </header>
+    <div class="app-shell">
+      <aside class="sidebar">
+        <a class="brand" href="#overview" aria-label="ZeroTier Planet Console">
+          <span class="brand-mark">ZP</span>
+          <span>
+            <strong>ZeroTier Planet</strong>
+            <small>Private network console</small>
+          </span>
+        </a>
+        <nav class="side-nav" aria-label="Primary">
+          <a href="#overview" data-nav="overview">Overview</a>
+          <a href="#networks" data-nav="networks">Networks</a>
+          <a href="#delivery" data-nav="delivery">Client delivery</a>
+          <a href="#guide" data-nav="guide">Guide</a>
+          <a href="#settings" data-nav="settings">Access</a>
+        </nav>
+        <div class="sidebar-status">
+          <span class="label">Console state</span>
+          <strong id="consoleState">Locked</strong>
+          <small id="consoleStateDetail">Paste the server key to manage networks.</small>
+        </div>
+      </aside>
 
-    <main>
-      <section class="hero band" id="overview">
-        <div class="hero-copy">
-          <p class="eyebrow">Self-hosted PLANET console</p>
-          <h1>Ship a private ZeroTier root with fewer manual steps.</h1>
-          <p class="hero-text">
-            Generate short-lived planet links, hand clients a single install command,
-            and keep ztncui focused on network administration.
-          </p>
-          <div class="hero-actions">
-            <a class="primary-action" href="#downloads">Create client links</a>
-            <a class="secondary-action" id="heroConsoleLink" href="#" target="_blank" rel="noreferrer">Manage networks</a>
-          </div>
-        </div>
-        <div class="network-visual" aria-hidden="true">
-          <img src="/assets/zerotier-network.png" alt="">
-        </div>
-      </section>
-
-      <section class="status-strip" aria-live="polite">
-        <div>
-          <span class="label">Planet</span>
-          <strong id="planetState">Checking</strong>
-        </div>
-        <div>
-          <span class="label">ZeroTier port</span>
-          <strong id="ztPort">--</strong>
-        </div>
-        <div>
-          <span class="label">Controller</span>
-          <strong id="apiPort">--</strong>
-        </div>
-        <div>
-          <span class="label">Link lifetime</span>
-          <strong id="ttlState">--</strong>
-        </div>
-      </section>
-
-      <section class="band split" id="downloads">
-        <div>
-          <p class="eyebrow">Operator tools</p>
-          <h2>Temporary links for controlled rollout.</h2>
-          <p class="section-text">
-            Keep the long-lived server key private. Operators paste it once in this browser,
-            generate short-lived URLs, then distribute wget and install commands.
-          </p>
-        </div>
-
-        <div class="panel">
-          <label class="field">
-            <span>Server key</span>
-            <input id="adminKey" type="password" autocomplete="off" placeholder="Paste /app/config/file_server.key">
-          </label>
-          <label class="field compact-field">
-            <span>Lifetime</span>
-            <select id="ttl">
-              <option value="600">10 minutes</option>
-              <option value="1800">30 minutes</option>
-              <option value="3600">1 hour</option>
-            </select>
-          </label>
-          <div class="button-row">
-            <button class="button primary" id="saveKeyButton" type="button">Save locally</button>
-            <button class="button" id="refreshButton" type="button">Refresh status</button>
-          </div>
-          <p class="hint">The key is stored only in this browser's localStorage.</p>
-        </div>
-      </section>
-
-      <section class="tools-grid" aria-label="Client link tools">
-        <article class="tool-card">
+      <main class="workspace">
+        <header class="topbar">
           <div>
-            <p class="tool-kicker">Planet file</p>
-            <h3>wget download</h3>
-            <p>Use this when a user already has ZeroTier installed and only needs the planet file.</p>
+            <p class="eyebrow">Unified control plane</p>
+            <h1>Network operations and client rollout in one console.</h1>
           </div>
-          <pre><code id="wgetCommand">Generate a link first.</code></pre>
-          <div class="button-row">
-            <button class="button primary" id="planetLinkButton" type="button">Generate</button>
-            <button class="button" data-copy-target="wgetCommand" type="button">Copy</button>
+          <div class="top-actions">
+            <button class="button" id="refreshAllButton" type="button">Refresh</button>
+            <a class="button ghost" href="#settings">Server key</a>
           </div>
-        </article>
+        </header>
 
-        <article class="tool-card">
+        <section class="metrics" aria-live="polite">
           <div>
-            <p class="tool-kicker">Linux</p>
-            <h3>Install and join</h3>
-            <p>Installs ZeroTier when missing, replaces planet, restarts the service, then asks for Network ID.</p>
+            <span class="label">Planet</span>
+            <strong id="planetState">Checking</strong>
           </div>
-          <pre><code id="linuxCommand">Generate an installer first.</code></pre>
-          <div class="button-row">
-            <button class="button primary" id="linuxLinkButton" type="button">Generate</button>
-            <button class="button" data-copy-target="linuxCommand" type="button">Copy</button>
-          </div>
-        </article>
-
-        <article class="tool-card">
           <div>
-            <p class="tool-kicker">macOS</p>
-            <h3>Replace and join</h3>
-            <p>Uses Homebrew when available, otherwise guides users to the official PKG installer.</p>
+            <span class="label">Controller</span>
+            <strong id="controllerStatus">Locked</strong>
           </div>
-          <pre><code id="macosCommand">Generate an installer first.</code></pre>
-          <div class="button-row">
-            <button class="button primary" id="macosLinkButton" type="button">Generate</button>
-            <button class="button" data-copy-target="macosCommand" type="button">Copy</button>
+          <div>
+            <span class="label">Networks</span>
+            <strong id="networkCount">--</strong>
           </div>
-        </article>
-      </section>
+          <div>
+            <span class="label">ZeroTier address</span>
+            <strong id="ztAddress">--</strong>
+          </div>
+        </section>
 
-      <section class="band" id="clients">
-        <div class="section-heading">
-          <p class="eyebrow">Client rollout</p>
-          <h2>One path for operators, one path for users.</h2>
-        </div>
-        <div class="workflow">
-          <div class="step">
-            <span>1</span>
-            <strong>Create a network</strong>
-            <p>Open ztncui, create a network, and copy the Network ID.</p>
+        <section class="view-section" id="overview">
+          <div class="section-heading">
+            <div>
+              <p class="eyebrow">Overview</p>
+              <h2>Deployment health</h2>
+            </div>
           </div>
-          <div class="step">
-            <span>2</span>
-            <strong>Generate a command</strong>
-            <p>Create a temporary Linux or macOS installer link from this portal.</p>
+          <div class="overview-grid">
+            <div class="panel">
+              <div class="panel-heading">
+                <h3>Server readiness</h3>
+                <span class="pill" id="readinessPill">Checking</span>
+              </div>
+              <dl class="detail-list">
+                <div>
+                  <dt>Public console URL</dt>
+                  <dd id="publicUrl">--</dd>
+                </div>
+                <div>
+                  <dt>ZeroTier port</dt>
+                  <dd id="ztPort">--</dd>
+                </div>
+                <div>
+                  <dt>File server port</dt>
+                  <dd id="filePort">--</dd>
+                </div>
+                <div>
+                  <dt>Link lifetime</dt>
+                  <dd id="ttlState">--</dd>
+                </div>
+              </dl>
+            </div>
+            <div class="panel visual-panel">
+              <img src="/assets/zerotier-network.png" alt="">
+            </div>
           </div>
-          <div class="step">
-            <span>3</span>
-            <strong>Join and authorize</strong>
-            <p>The script asks for Network ID. Approve the new member in ztncui.</p>
-          </div>
-          <div class="step">
-            <span>4</span>
-            <strong>Verify peers</strong>
-            <p>Run zerotier-cli peers and confirm the PLANET role appears.</p>
-          </div>
-        </div>
-      </section>
+        </section>
 
-      <section class="band guide" id="guide">
-        <div class="section-heading">
-          <p class="eyebrow">Tutorial</p>
-          <h2>Deployment and client guide</h2>
-        </div>
-        <div class="guide-grid">
-          <article>
-            <h3>Deploy the server</h3>
-            <ol>
-              <li>Run deploy.sh and choose install.</li>
-              <li>Open the portal on the file server port.</li>
-              <li>Copy the server key from data/zerotier/config/file_server.key.</li>
-              <li>Open the controller and change the default password.</li>
-            </ol>
-          </article>
-          <article>
-            <h3>Create a network</h3>
-            <ol>
-              <li>Open ztncui from the controller button.</li>
-              <li>Create a network and configure the address pool.</li>
-              <li>Copy the Network ID for client enrollment.</li>
-              <li>Authorize new members after they run the installer.</li>
-            </ol>
-          </article>
-          <article>
-            <h3>Linux users</h3>
-            <ol>
-              <li>Copy the Linux command from this portal.</li>
-              <li>Run it in a terminal with sudo.</li>
-              <li>Enter the Network ID when prompted.</li>
-              <li>Wait for the operator to authorize the device.</li>
-            </ol>
-          </article>
-          <article>
-            <h3>macOS users</h3>
-            <ol>
-              <li>Install ZeroTier One first if Homebrew is not available.</li>
-              <li>Run the macOS command in Terminal.</li>
-              <li>Enter the Network ID when prompted.</li>
-              <li>Approve permissions requested by macOS if needed.</li>
-            </ol>
-          </article>
-        </div>
-      </section>
-    </main>
+        <section class="view-section" id="networks">
+          <div class="section-heading">
+            <div>
+              <p class="eyebrow">Controller</p>
+              <h2>Networks</h2>
+            </div>
+            <form class="inline-form" id="createNetworkForm">
+              <input id="newNetworkName" type="text" placeholder="New network name" autocomplete="off">
+              <button class="button primary" type="submit">Create</button>
+            </form>
+          </div>
+
+          <div class="manager-grid">
+            <div class="panel network-list-panel">
+              <div class="panel-heading">
+                <h3>Network list</h3>
+                <span class="count" id="networkListCount">0</span>
+              </div>
+              <div class="list" id="networkList"></div>
+            </div>
+
+            <div class="network-workspace" id="networkWorkspace">
+              <div class="empty-state" id="networkEmpty">
+                <h3>No network selected</h3>
+                <p>Select a network or create one to manage members, routes, DNS, and address allocation.</p>
+              </div>
+
+              <div class="network-detail" id="networkDetail" hidden>
+                <div class="panel network-summary">
+                  <div>
+                    <p class="eyebrow">Selected network</p>
+                    <h3 id="selectedNetworkName">--</h3>
+                    <p id="selectedNetworkId" class="muted mono">--</p>
+                  </div>
+                  <div class="summary-actions">
+                    <button class="button danger" id="deleteNetworkButton" type="button">Delete network</button>
+                  </div>
+                </div>
+
+                <div class="tabs" role="tablist" aria-label="Network management">
+                  <button class="tab active" data-tab="members" type="button">Members</button>
+                  <button class="tab" data-tab="settings" type="button">Settings</button>
+                  <button class="tab" data-tab="routes" type="button">Routes</button>
+                  <button class="tab" data-tab="dns" type="button">DNS</button>
+                  <button class="tab" data-tab="raw" type="button">Raw detail</button>
+                </div>
+
+                <div class="tab-panel active" data-panel="members">
+                  <div class="panel">
+                    <div class="panel-heading">
+                      <div>
+                        <h3>Members</h3>
+                        <p class="muted">Authorize devices, set bridge mode, add labels, and manage assigned addresses.</p>
+                      </div>
+                      <button class="button" id="refreshNetworkButton" type="button">Refresh members</button>
+                    </div>
+                    <div class="table-wrap">
+                      <table class="data-table">
+                        <thead>
+                          <tr>
+                            <th>Name</th>
+                            <th>Member ID</th>
+                            <th>State</th>
+                            <th>Authorized</th>
+                            <th>Bridge</th>
+                            <th>IP assignments</th>
+                            <th>Actions</th>
+                          </tr>
+                        </thead>
+                        <tbody id="membersTable"></tbody>
+                      </table>
+                    </div>
+                  </div>
+                </div>
+
+                <div class="tab-panel" data-panel="settings">
+                  <div class="settings-grid">
+                    <form class="panel form-panel" id="networkBasicsForm">
+                      <div class="panel-heading">
+                        <h3>Network basics</h3>
+                      </div>
+                      <label class="field">
+                        <span>Name</span>
+                        <input id="networkNameInput" type="text" autocomplete="off">
+                      </label>
+                      <label class="switch-row">
+                        <span>
+                          <strong>Private network</strong>
+                          <small>Require explicit authorization before members can pass traffic.</small>
+                        </span>
+                        <input id="networkPrivateInput" type="checkbox">
+                      </label>
+                      <button class="button primary" type="submit">Save basics</button>
+                    </form>
+
+                    <form class="panel form-panel" id="easySetupForm">
+                      <div class="panel-heading">
+                        <h3>Easy setup</h3>
+                      </div>
+                      <label class="field">
+                        <span>Managed route CIDR</span>
+                        <input id="easyCidr" type="text" placeholder="10.147.17.0/24">
+                      </label>
+                      <div class="field-grid two">
+                        <label class="field">
+                          <span>Pool start</span>
+                          <input id="easyPoolStart" type="text" placeholder="10.147.17.10">
+                        </label>
+                        <label class="field">
+                          <span>Pool end</span>
+                          <input id="easyPoolEnd" type="text" placeholder="10.147.17.250">
+                        </label>
+                      </div>
+                      <button class="button primary" type="submit">Apply easy setup</button>
+                    </form>
+
+                    <form class="panel form-panel" id="assignModeForm">
+                      <div class="panel-heading">
+                        <h3>Address assignment</h3>
+                      </div>
+                      <label class="switch-row">
+                        <span>
+                          <strong>IPv4 auto assign</strong>
+                          <small>Assign IPv4 addresses from configured pools.</small>
+                        </span>
+                        <input id="v4AssignInput" type="checkbox">
+                      </label>
+                      <label class="switch-row">
+                        <span>
+                          <strong>IPv6 6plane</strong>
+                          <small>Enable ZeroTier 6plane addressing.</small>
+                        </span>
+                        <input id="v6PlaneInput" type="checkbox">
+                      </label>
+                      <label class="switch-row">
+                        <span>
+                          <strong>IPv6 RFC4193</strong>
+                          <small>Enable unique local IPv6 addressing.</small>
+                        </span>
+                        <input id="v6RfcInput" type="checkbox">
+                      </label>
+                      <label class="switch-row">
+                        <span>
+                          <strong>IPv6 auto assign</strong>
+                          <small>Assign IPv6 addresses from managed modes.</small>
+                        </span>
+                        <input id="v6ZtInput" type="checkbox">
+                      </label>
+                      <button class="button primary" type="submit">Save assignment modes</button>
+                    </form>
+                  </div>
+                </div>
+
+                <div class="tab-panel" data-panel="routes">
+                  <div class="settings-grid">
+                    <form class="panel form-panel" id="routeForm">
+                      <div class="panel-heading">
+                        <h3>Add route</h3>
+                      </div>
+                      <label class="field">
+                        <span>Target CIDR</span>
+                        <input id="routeTarget" type="text" placeholder="10.147.17.0/24">
+                      </label>
+                      <label class="field">
+                        <span>Gateway</span>
+                        <input id="routeVia" type="text" placeholder="Leave empty for this ZeroTier network">
+                      </label>
+                      <button class="button primary" type="submit">Add route</button>
+                    </form>
+
+                    <form class="panel form-panel" id="poolForm">
+                      <div class="panel-heading">
+                        <h3>Add assignment pool</h3>
+                      </div>
+                      <div class="field-grid two">
+                        <label class="field">
+                          <span>Range start</span>
+                          <input id="poolStart" type="text" placeholder="10.147.17.10">
+                        </label>
+                        <label class="field">
+                          <span>Range end</span>
+                          <input id="poolEnd" type="text" placeholder="10.147.17.250">
+                        </label>
+                      </div>
+                      <button class="button primary" type="submit">Add pool</button>
+                    </form>
+                  </div>
+                  <div class="split-tables">
+                    <div class="panel">
+                      <div class="panel-heading"><h3>Routes</h3></div>
+                      <div class="list compact" id="routesList"></div>
+                    </div>
+                    <div class="panel">
+                      <div class="panel-heading"><h3>Assignment pools</h3></div>
+                      <div class="list compact" id="poolsList"></div>
+                    </div>
+                  </div>
+                </div>
+
+                <div class="tab-panel" data-panel="dns">
+                  <form class="panel form-panel" id="dnsForm">
+                    <div class="panel-heading">
+                      <h3>DNS configuration</h3>
+                    </div>
+                    <label class="field">
+                      <span>Search domain</span>
+                      <input id="dnsDomain" type="text" placeholder="corp.example">
+                    </label>
+                    <label class="field">
+                      <span>DNS servers</span>
+                      <textarea id="dnsServers" rows="5" placeholder="One IP address per line"></textarea>
+                    </label>
+                    <button class="button primary" type="submit">Save DNS</button>
+                  </form>
+                </div>
+
+                <div class="tab-panel" data-panel="raw">
+                  <div class="panel">
+                    <div class="panel-heading">
+                      <h3>Controller JSON</h3>
+                    </div>
+                    <pre class="raw-json"><code id="rawNetworkJson">{}</code></pre>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <section class="view-section" id="delivery">
+          <div class="section-heading">
+            <div>
+              <p class="eyebrow">Client delivery</p>
+              <h2>Planet links and installers</h2>
+            </div>
+          </div>
+
+          <div class="delivery-grid">
+            <div class="panel form-panel">
+              <div class="panel-heading">
+                <h3>Link policy</h3>
+              </div>
+              <label class="field">
+                <span>Lifetime</span>
+                <select id="ttl">
+                  <option value="600">10 minutes</option>
+                  <option value="1800">30 minutes</option>
+                  <option value="3600">1 hour</option>
+                </select>
+              </label>
+              <p class="muted">Generated links are signed and expire automatically. The server key never appears in the command.</p>
+            </div>
+
+            <article class="command-card">
+              <div>
+                <p class="tool-kicker">Planet file</p>
+                <h3>wget download</h3>
+                <p>For users who already have ZeroTier installed.</p>
+              </div>
+              <pre><code id="wgetCommand">Generate a link first.</code></pre>
+              <div class="button-row">
+                <button class="button primary" id="planetLinkButton" type="button">Generate</button>
+                <button class="button" data-copy-target="wgetCommand" type="button">Copy</button>
+              </div>
+            </article>
+
+            <article class="command-card">
+              <div>
+                <p class="tool-kicker">Linux</p>
+                <h3>Install, replace planet, join</h3>
+                <p>Installs ZeroTier if missing, replaces planet, restarts, then asks for Network ID.</p>
+              </div>
+              <pre><code id="linuxCommand">Generate an installer first.</code></pre>
+              <div class="button-row">
+                <button class="button primary" id="linuxLinkButton" type="button">Generate</button>
+                <button class="button" data-copy-target="linuxCommand" type="button">Copy</button>
+              </div>
+            </article>
+
+            <article class="command-card">
+              <div>
+                <p class="tool-kicker">macOS</p>
+                <h3>Install, replace planet, join</h3>
+                <p>Uses Homebrew or the official package, then replaces planet and joins a network.</p>
+              </div>
+              <pre><code id="macosCommand">Generate an installer first.</code></pre>
+              <div class="button-row">
+                <button class="button primary" id="macosLinkButton" type="button">Generate</button>
+                <button class="button" data-copy-target="macosCommand" type="button">Copy</button>
+              </div>
+            </article>
+          </div>
+        </section>
+
+        <section class="view-section" id="guide">
+          <div class="section-heading">
+            <div>
+              <p class="eyebrow">Guide</p>
+              <h2>Operator workflow</h2>
+            </div>
+          </div>
+          <div class="guide-grid">
+            <article>
+              <span>1</span>
+              <h3>Unlock the console</h3>
+              <p>Paste the server key from <code>data/zerotier/config/file_server.key</code>. The key is stored only in this browser.</p>
+            </article>
+            <article>
+              <span>2</span>
+              <h3>Create and configure a network</h3>
+              <p>Create a network, apply Easy setup, then adjust routes, assignment pools, DNS, and access control as needed.</p>
+            </article>
+            <article>
+              <span>3</span>
+              <h3>Distribute client commands</h3>
+              <p>Generate a temporary Linux or macOS installer. Users enter the Network ID when prompted.</p>
+            </article>
+            <article>
+              <span>4</span>
+              <h3>Authorize members</h3>
+              <p>Approve new devices in Members, add friendly names, and verify peer status after authorization.</p>
+            </article>
+          </div>
+        </section>
+
+        <section class="view-section" id="settings">
+          <div class="section-heading">
+            <div>
+              <p class="eyebrow">Access</p>
+              <h2>Server key</h2>
+            </div>
+          </div>
+          <div class="panel access-panel">
+            <label class="field">
+              <span>Server key</span>
+              <input id="adminKey" type="password" autocomplete="off" placeholder="Paste data/zerotier/config/file_server.key">
+            </label>
+            <div class="button-row">
+              <button class="button primary" id="saveKeyButton" type="button">Save locally</button>
+              <button class="button" id="clearKeyButton" type="button">Clear</button>
+            </div>
+            <p class="muted">The key is used to authorize controller operations and signed link generation. It is stored in localStorage only.</p>
+          </div>
+        </section>
+      </main>
+    </div>
 
     <div class="toast" id="toast" role="status" aria-live="polite"></div>
     <script src="/app.js"></script>

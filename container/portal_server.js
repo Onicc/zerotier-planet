@@ -1,16 +1,18 @@
 const http = require('http');
 const fs = require('fs');
 const path = require('path');
-const url = require('url');
 const crypto = require('crypto');
 
 const port = Number(process.env.FILE_SERVER_PORT || 3000);
 const appPath = process.env.APP_PATH || '/app';
+const ztHome = process.env.ZT_HOME || '/var/lib/zerotier-one';
 const configPath = path.join(appPath, 'config');
 const distPath = path.join(appPath, 'dist');
 const portalPath = path.join(appPath, 'portal');
 const assetsPath = path.join(portalPath, 'assets');
 const secretKeyPath = path.join(configPath, 'file_server.key');
+const memberNamesPath = path.join(configPath, 'member_names.json');
+const ztTokenPath = path.join(ztHome, 'authtoken.secret');
 const publicUrl = (process.env.PUBLIC_URL || '').replace(/\/+$/, '');
 const defaultTtl = Number(process.env.LINK_TTL_SECONDS || 600);
 const maxTtl = Number(process.env.LINK_MAX_TTL_SECONDS || 3600);
@@ -51,6 +53,153 @@ function requestBaseUrl(req) {
   const proto = req.headers['x-forwarded-proto'] || process.env.PUBLIC_SCHEME || 'http';
   const host = req.headers['x-forwarded-host'] || req.headers.host || `localhost:${port}`;
   return `${proto}://${host}`;
+}
+
+function parseRequestUrl(req) {
+  const parsed = new URL(req.url, 'http://zerotier-planet.local');
+  return {
+    pathname: parsed.pathname,
+    query: Object.fromEntries(parsed.searchParams.entries()),
+  };
+}
+
+function readConfigValue(name, fallback = '') {
+  const filePath = path.join(configPath, name);
+  if (fs.existsSync(filePath)) {
+    return fs.readFileSync(filePath, 'utf8').trim();
+  }
+  return fallback;
+}
+
+function controllerPort() {
+  return Number(readConfigValue('zerotier-one.port', process.env.ZT_PORT || '9994'));
+}
+
+function readZtToken() {
+  if (!fs.existsSync(ztTokenPath)) {
+    const error = new Error('ZeroTier auth token is not available yet');
+    error.statusCode = 503;
+    throw error;
+  }
+  return fs.readFileSync(ztTokenPath, 'utf8').trim();
+}
+
+function readJsonFile(filePath, fallback) {
+  if (!fs.existsSync(filePath)) {
+    return fallback;
+  }
+  try {
+    return JSON.parse(fs.readFileSync(filePath, 'utf8'));
+  } catch (error) {
+    return fallback;
+  }
+}
+
+function writeJsonFile(filePath, data) {
+  fs.mkdirSync(path.dirname(filePath), { recursive: true });
+  fs.writeFileSync(filePath, `${JSON.stringify(data, null, 2)}\n`, { mode: 0o600 });
+}
+
+function loadMemberNames() {
+  return readJsonFile(memberNamesPath, {});
+}
+
+function saveMemberName(memberId, name) {
+  const names = loadMemberNames();
+  const cleanName = String(name || '').trim();
+  if (cleanName) {
+    names[memberId] = cleanName;
+  } else {
+    delete names[memberId];
+  }
+  writeJsonFile(memberNamesPath, names);
+  return cleanName;
+}
+
+function removeMemberName(memberId) {
+  const names = loadMemberNames();
+  delete names[memberId];
+  writeJsonFile(memberNamesPath, names);
+}
+
+function readRequestBody(req) {
+  return new Promise((resolve, reject) => {
+    let raw = '';
+    req.on('data', (chunk) => {
+      raw += chunk;
+      if (raw.length > 1024 * 1024) {
+        reject(Object.assign(new Error('Request body is too large'), { statusCode: 413 }));
+        req.destroy();
+      }
+    });
+    req.on('end', () => {
+      if (!raw) {
+        resolve({});
+        return;
+      }
+      try {
+        resolve(JSON.parse(raw));
+      } catch (error) {
+        reject(Object.assign(new Error('Request body must be valid JSON'), { statusCode: 400 }));
+      }
+    });
+    req.on('error', reject);
+  });
+}
+
+function ztRequest(method, route, body) {
+  const requestBody = body === undefined ? null : JSON.stringify(body);
+  const requestOptions = {
+    hostname: '127.0.0.1',
+    port: controllerPort(),
+    path: route,
+    method,
+    headers: {
+      'X-ZT1-Auth': readZtToken(),
+      Accept: 'application/json',
+    },
+  };
+
+  if (requestBody !== null) {
+    requestOptions.headers['Content-Type'] = 'application/json';
+    requestOptions.headers['Content-Length'] = Buffer.byteLength(requestBody);
+  }
+
+  return new Promise((resolve, reject) => {
+    const request = http.request(requestOptions, (response) => {
+      let raw = '';
+      response.setEncoding('utf8');
+      response.on('data', (chunk) => {
+        raw += chunk;
+      });
+      response.on('end', () => {
+        let payload = null;
+        if (raw) {
+          try {
+            payload = JSON.parse(raw);
+          } catch (error) {
+            payload = raw;
+          }
+        }
+
+        if (response.statusCode >= 400) {
+          const message = typeof payload === 'string' ? payload : `ZeroTier API returned ${response.statusCode}`;
+          reject(Object.assign(new Error(message), { statusCode: response.statusCode, payload }));
+          return;
+        }
+        resolve(payload);
+      });
+    });
+
+    request.on('error', (error) => {
+      reject(Object.assign(error, { statusCode: 502 }));
+    });
+
+    if (requestBody !== null) {
+      request.write(requestBody);
+    }
+    request.end();
+  });
 }
 
 function fileExists(fileName) {
@@ -147,13 +296,15 @@ function serveStatic(req, res, parsedUrl) {
   if (requestPath === '/') {
     requestPath = '/index.html';
   }
-  if (requestPath === '/guide' || requestPath === '/clients' || requestPath === '/console') {
-    requestPath = '/index.html';
-  }
 
   const rootPath = requestPath.startsWith('/assets/') ? assetsPath : portalPath;
   const relativePath = requestPath.startsWith('/assets/') ? requestPath.replace(/^\/assets\//, '') : requestPath;
-  const filePath = path.normalize(path.join(rootPath, relativePath));
+  let filePath = path.normalize(path.join(rootPath, relativePath));
+
+  if ((!fs.existsSync(filePath) || fs.statSync(filePath).isDirectory()) && req.method === 'GET' && !path.extname(requestPath)) {
+    filePath = path.join(portalPath, 'index.html');
+  }
+
   if (!isInsidePath(rootPath, filePath)) {
     return send(res, 403, 'Forbidden', { 'Content-Type': 'text/plain; charset=utf-8' });
   }
@@ -202,6 +353,336 @@ function serveFileDownload(res, fileName) {
 
 function shellSingleQuote(value) {
   return `'${String(value).replace(/'/g, `'\\''`)}'`;
+}
+
+function normalizeMemberIds(memberList) {
+  if (Array.isArray(memberList)) {
+    return memberList.map((item) => {
+      if (typeof item === 'string') {
+        return item;
+      }
+      if (item && typeof item === 'object') {
+        return Object.keys(item)[0];
+      }
+      return '';
+    }).filter(Boolean);
+  }
+
+  if (memberList && typeof memberList === 'object') {
+    return Object.keys(memberList);
+  }
+
+  return [];
+}
+
+async function getControllerStatus() {
+  return ztRequest('GET', '/status');
+}
+
+async function getPeerMap() {
+  const peers = await ztRequest('GET', '/peer');
+  const peerMap = {};
+  for (const peer of Array.isArray(peers) ? peers : []) {
+    if (peer && peer.address) {
+      peerMap[peer.address] = peer;
+    }
+  }
+  return peerMap;
+}
+
+async function listNetworks() {
+  const nwids = await ztRequest('GET', '/controller/network');
+  const ids = Array.isArray(nwids) ? nwids : [];
+  const networks = await Promise.all(ids.map((nwid) => ztRequest('GET', `/controller/network/${encodeURIComponent(nwid)}`)));
+  return networks.sort((a, b) => String(a.name || a.nwid).localeCompare(String(b.name || b.nwid)));
+}
+
+async function getNetworkBundle(nwid) {
+  const [network, memberList, peerMap, status] = await Promise.all([
+    ztRequest('GET', `/controller/network/${encodeURIComponent(nwid)}`),
+    ztRequest('GET', `/controller/network/${encodeURIComponent(nwid)}/member`),
+    getPeerMap(),
+    getControllerStatus(),
+  ]);
+
+  const memberIds = normalizeMemberIds(memberList);
+  const names = loadMemberNames();
+  const members = await Promise.all(memberIds.map(async (memberId) => {
+    try {
+      const member = await ztRequest('GET', `/controller/network/${encodeURIComponent(nwid)}/member/${encodeURIComponent(memberId)}`);
+      const id = member.id || member.address || memberId;
+      const peer = peerMap[id] || null;
+      return {
+        ...member,
+        id,
+        address: member.address || id,
+        name: names[id] || '',
+        peer,
+        peerState: id === status.address ? 'controller' : peer && peer.latency !== -1 ? 'online' : peer ? 'relay' : 'offline',
+      };
+    } catch (error) {
+      return {
+        id: memberId,
+        address: memberId,
+        name: names[memberId] || '',
+        error: error.message,
+        peer: peerMap[memberId] || null,
+        peerState: 'error',
+      };
+    }
+  }));
+
+  members.sort((a, b) => {
+    if (a.authorized !== b.authorized) {
+      return a.authorized ? 1 : -1;
+    }
+    return String(a.name || a.id).localeCompare(String(b.name || b.id));
+  });
+
+  return { network, members, controller: status };
+}
+
+async function createNetwork(body) {
+  const name = String(body.name || '').trim();
+  if (!name) {
+    throw Object.assign(new Error('Network name is required'), { statusCode: 400 });
+  }
+  const status = await getControllerStatus();
+  return ztRequest('POST', `/controller/network/${status.address}______`, { name });
+}
+
+async function updateNetwork(nwid, body) {
+  const allowed = ['name', 'private', 'v4AssignMode', 'v6AssignMode', 'dns', 'routes', 'ipAssignmentPools'];
+  const payload = {};
+  for (const key of allowed) {
+    if (Object.prototype.hasOwnProperty.call(body, key)) {
+      payload[key] = body[key];
+    }
+  }
+  if (!Object.keys(payload).length) {
+    throw Object.assign(new Error('No supported network fields supplied'), { statusCode: 400 });
+  }
+  return ztRequest('POST', `/controller/network/${encodeURIComponent(nwid)}`, payload);
+}
+
+async function easySetup(nwid, body) {
+  const networkCIDR = String(body.networkCIDR || '').trim();
+  const poolStart = String(body.poolStart || '').trim();
+  const poolEnd = String(body.poolEnd || '').trim();
+  if (!networkCIDR || !poolStart || !poolEnd) {
+    throw Object.assign(new Error('CIDR, pool start, and pool end are required'), { statusCode: 400 });
+  }
+  return ztRequest('POST', `/controller/network/${encodeURIComponent(nwid)}`, {
+    routes: [{ target: networkCIDR, via: null }],
+    ipAssignmentPools: [{ ipRangeStart: poolStart, ipRangeEnd: poolEnd }],
+    v4AssignMode: { zt: true },
+  });
+}
+
+async function addRoute(nwid, body) {
+  const target = String(body.target || '').trim();
+  if (!target) {
+    throw Object.assign(new Error('Route target is required'), { statusCode: 400 });
+  }
+  const network = await ztRequest('GET', `/controller/network/${encodeURIComponent(nwid)}`);
+  const routes = Array.isArray(network.routes) ? network.routes.slice() : [];
+  if (routes.some((route) => route.target === target)) {
+    throw Object.assign(new Error('Route target already exists'), { statusCode: 409 });
+  }
+  routes.push({ target, via: body.via ? String(body.via).trim() : null });
+  return updateNetwork(nwid, { routes });
+}
+
+async function deleteRoute(nwid, query) {
+  const target = String(query.target || '').trim();
+  const network = await ztRequest('GET', `/controller/network/${encodeURIComponent(nwid)}`);
+  const routes = (Array.isArray(network.routes) ? network.routes : []).filter((route) => route.target !== target);
+  return updateNetwork(nwid, { routes });
+}
+
+async function addIpPool(nwid, body) {
+  const ipRangeStart = String(body.ipRangeStart || '').trim();
+  const ipRangeEnd = String(body.ipRangeEnd || '').trim();
+  if (!ipRangeStart || !ipRangeEnd) {
+    throw Object.assign(new Error('IP range start and end are required'), { statusCode: 400 });
+  }
+  const network = await ztRequest('GET', `/controller/network/${encodeURIComponent(nwid)}`);
+  const ipAssignmentPools = Array.isArray(network.ipAssignmentPools) ? network.ipAssignmentPools.slice() : [];
+  ipAssignmentPools.push({ ipRangeStart, ipRangeEnd });
+  return updateNetwork(nwid, { ipAssignmentPools });
+}
+
+async function deleteIpPool(nwid, query) {
+  const start = String(query.start || '').trim();
+  const end = String(query.end || '').trim();
+  const network = await ztRequest('GET', `/controller/network/${encodeURIComponent(nwid)}`);
+  const ipAssignmentPools = (Array.isArray(network.ipAssignmentPools) ? network.ipAssignmentPools : [])
+    .filter((pool) => pool.ipRangeStart !== start || pool.ipRangeEnd !== end);
+  return updateNetwork(nwid, { ipAssignmentPools });
+}
+
+async function updateMember(nwid, memberId, body) {
+  const payload = {};
+  for (const field of ['authorized', 'activeBridge', 'noAutoAssign']) {
+    if (Object.prototype.hasOwnProperty.call(body, field)) {
+      payload[field] = Boolean(body[field]);
+    }
+  }
+
+  let savedName = null;
+  if (Object.prototype.hasOwnProperty.call(body, 'name')) {
+    savedName = saveMemberName(memberId, body.name);
+  }
+
+  let member = null;
+  if (Object.keys(payload).length) {
+    member = await ztRequest('POST', `/controller/network/${encodeURIComponent(nwid)}/member/${encodeURIComponent(memberId)}`, payload);
+  } else {
+    member = await ztRequest('GET', `/controller/network/${encodeURIComponent(nwid)}/member/${encodeURIComponent(memberId)}`);
+  }
+
+  return {
+    ...member,
+    id: member.id || member.address || memberId,
+    name: savedName === null ? loadMemberNames()[memberId] || '' : savedName,
+  };
+}
+
+async function addIpAssignment(nwid, memberId, body) {
+  const ipAddress = String(body.ipAddress || '').trim();
+  if (!ipAddress) {
+    throw Object.assign(new Error('IP address is required'), { statusCode: 400 });
+  }
+  const member = await ztRequest('GET', `/controller/network/${encodeURIComponent(nwid)}/member/${encodeURIComponent(memberId)}`);
+  const ipAssignments = Array.isArray(member.ipAssignments) ? member.ipAssignments.slice() : [];
+  if (!ipAssignments.includes(ipAddress)) {
+    ipAssignments.push(ipAddress);
+  }
+  return ztRequest('POST', `/controller/network/${encodeURIComponent(nwid)}/member/${encodeURIComponent(memberId)}`, { ipAssignments });
+}
+
+async function deleteIpAssignment(nwid, memberId, query) {
+  const index = Number(query.index);
+  const member = await ztRequest('GET', `/controller/network/${encodeURIComponent(nwid)}/member/${encodeURIComponent(memberId)}`);
+  const ipAssignments = Array.isArray(member.ipAssignments) ? member.ipAssignments.slice() : [];
+  if (!Number.isInteger(index) || index < 0 || index >= ipAssignments.length) {
+    throw Object.assign(new Error('IP assignment index is invalid'), { statusCode: 400 });
+  }
+  ipAssignments.splice(index, 1);
+  return ztRequest('POST', `/controller/network/${encodeURIComponent(nwid)}/member/${encodeURIComponent(memberId)}`, { ipAssignments });
+}
+
+function sendApiError(res, error) {
+  const statusCode = error.statusCode && error.statusCode >= 400 ? error.statusCode : 500;
+  sendJson(res, statusCode, {
+    error: error.message || 'Request failed',
+    details: error.payload || undefined,
+  });
+}
+
+async function handleControllerApi(req, res, parsedUrl) {
+  if (!authorizeAdmin(req, parsedUrl)) {
+    return sendJson(res, 401, { error: 'Unauthorized' });
+  }
+
+  const parts = parsedUrl.pathname.split('/').filter(Boolean);
+  const method = req.method;
+  const body = ['POST', 'PATCH', 'PUT'].includes(method) ? await readRequestBody(req) : {};
+
+  if (parts.length === 3 && parts[2] === 'status' && method === 'GET') {
+    const [status, networks] = await Promise.all([getControllerStatus(), listNetworks()]);
+    return sendJson(res, 200, {
+      status,
+      networks,
+      controllerPort: String(controllerPort()),
+    });
+  }
+
+  if (parts.length === 3 && parts[2] === 'networks') {
+    if (method === 'GET') {
+      return sendJson(res, 200, { networks: await listNetworks() });
+    }
+    if (method === 'POST') {
+      return sendJson(res, 201, { network: await createNetwork(body) });
+    }
+  }
+
+  if (parts.length >= 4 && parts[2] === 'networks') {
+    const nwid = decodeURIComponent(parts[3]);
+
+    if (parts.length === 4) {
+      if (method === 'GET') {
+        return sendJson(res, 200, await getNetworkBundle(nwid));
+      }
+      if (method === 'PATCH') {
+        await updateNetwork(nwid, body);
+        return sendJson(res, 200, await getNetworkBundle(nwid));
+      }
+      if (method === 'DELETE') {
+        const deleted = await ztRequest('DELETE', `/controller/network/${encodeURIComponent(nwid)}`);
+        return sendJson(res, 200, { deleted: true, network: deleted });
+      }
+    }
+
+    if (parts.length === 5 && parts[4] === 'easy' && method === 'POST') {
+      await easySetup(nwid, body);
+      return sendJson(res, 200, await getNetworkBundle(nwid));
+    }
+
+    if (parts.length === 5 && parts[4] === 'routes') {
+      if (method === 'POST') {
+        await addRoute(nwid, body);
+        return sendJson(res, 200, await getNetworkBundle(nwid));
+      }
+      if (method === 'DELETE') {
+        await deleteRoute(nwid, parsedUrl.query);
+        return sendJson(res, 200, await getNetworkBundle(nwid));
+      }
+    }
+
+    if (parts.length === 5 && parts[4] === 'ip-pools') {
+      if (method === 'POST') {
+        await addIpPool(nwid, body);
+        return sendJson(res, 200, await getNetworkBundle(nwid));
+      }
+      if (method === 'DELETE') {
+        await deleteIpPool(nwid, parsedUrl.query);
+        return sendJson(res, 200, await getNetworkBundle(nwid));
+      }
+    }
+
+    if (parts.length >= 6 && parts[4] === 'members') {
+      const memberId = decodeURIComponent(parts[5]);
+
+      if (parts.length === 6) {
+        if (method === 'GET') {
+          const member = await ztRequest('GET', `/controller/network/${encodeURIComponent(nwid)}/member/${encodeURIComponent(memberId)}`);
+          return sendJson(res, 200, { member });
+        }
+        if (method === 'PATCH') {
+          return sendJson(res, 200, { member: await updateMember(nwid, memberId, body) });
+        }
+        if (method === 'DELETE') {
+          const deleted = await ztRequest('DELETE', `/controller/network/${encodeURIComponent(nwid)}/member/${encodeURIComponent(memberId)}`);
+          removeMemberName(memberId);
+          return sendJson(res, 200, { deleted: true, member: deleted });
+        }
+      }
+
+      if (parts.length === 7 && parts[6] === 'ip-assignments') {
+        if (method === 'POST') {
+          await addIpAssignment(nwid, memberId, body);
+          return sendJson(res, 200, await getNetworkBundle(nwid));
+        }
+        if (method === 'DELETE') {
+          await deleteIpAssignment(nwid, memberId, parsedUrl.query);
+          return sendJson(res, 200, await getNetworkBundle(nwid));
+        }
+      }
+    }
+  }
+
+  return sendJson(res, 404, { error: 'Controller API route not found' });
 }
 
 function linuxInstaller(req, expires) {
@@ -276,7 +757,7 @@ join_network() {
 
   if [ -n "$network_id" ]; then
     zerotier-cli join "$network_id"
-    log "Join request sent. Authorize this device in the controller."
+    log "Join request sent. Authorize this device in the console."
   else
     log "Skipped network join"
   fi
@@ -384,7 +865,7 @@ join_network() {
 
   if [ -n "$network_id" ]; then
     "$cli" join "$network_id"
-    log "Join request sent. Authorize this device in the controller."
+    log "Join request sent. Authorize this device in the console."
   else
     log "Skipped network join"
   fi
@@ -427,14 +908,14 @@ function handleApi(req, res, parsedUrl) {
     const files = listDownloadableFiles();
     return sendJson(res, 200, {
       service: 'zerotier-planet',
-      apiPort: process.env.API_PORT || '',
       fileServerPort: String(port),
-      zeroTierPort: process.env.ZT_PORT || '',
+      zeroTierPort: readConfigValue('zerotier-one.port', process.env.ZT_PORT || ''),
       publicUrl: requestBaseUrl(req),
       hasPlanet: files.some((file) => file.name === 'planet'),
       files,
       linkTtlSeconds: defaultTtl,
       maxLinkTtlSeconds: maxTtl,
+      integratedController: true,
     });
   }
 
@@ -479,7 +960,12 @@ function handleApi(req, res, parsedUrl) {
 }
 
 const server = http.createServer((req, res) => {
-  const parsedUrl = url.parse(req.url, true);
+  const parsedUrl = parseRequestUrl(req);
+
+  if (parsedUrl.pathname.startsWith('/api/controller/')) {
+    handleControllerApi(req, res, parsedUrl).catch((error) => sendApiError(res, error));
+    return;
+  }
 
   if (parsedUrl.pathname.startsWith('/api/')) {
     const handled = handleApi(req, res, parsedUrl);
@@ -524,5 +1010,5 @@ const server = http.createServer((req, res) => {
 });
 
 server.listen(port, () => {
-  console.log(`Portal and file server running at http://0.0.0.0:${port}/`);
+  console.log(`ZeroTier Planet console running at http://0.0.0.0:${port}/`);
 });

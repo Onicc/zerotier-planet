@@ -1,243 +1,274 @@
 # ZeroTier Planet
 
-A self-hosted ZeroTier Planet Docker image for private network deployments. The project provides planet generation, ztncui controller UI, a deployment portal, temporary signed download links, and Linux/macOS client installation scripts.
+ZeroTier Planet is a Docker-based deployment package for running a self-hosted ZeroTier root server. It provides one unified console for managing networks, authorizing members, configuring routes/DNS/IP assignment, generating temporary `planet` download links, and creating one-command Linux/macOS client installers.
 
-> Domain names are not written into planet files. This project keeps the standard ZeroTier world IP endpoint model.
+> Domain names are not supported inside the `planet` file. Use the server's public IPv4/IPv6 address when generating `planet`.
 
 ## Features
 
-- Multi-architecture image: `linux/amd64`, `linux/arm64`
-- Docker deployment for a private Planet and ztncui controller
-- Dedicated deployment portal with status, controller entry, and tutorial
-- Temporary HMAC-signed download links for `wget`/`curl`
+- Self-hosted ZeroTier Planet root server
+- Single web console for network and member management
+- Create, delete, and rename networks
+- Authorize members, configure bridge mode, save member labels, add/remove IP assignments
+- Manage routes, assignment pools, DNS, and IPv4/IPv6 assignment modes
+- Easy Setup for common IPv4 networks
+- Temporary signed `planet` download links
 - Linux/macOS scripts that install ZeroTier, replace `planet`, restart the service, and join a network
-- GitHub Actions workflow for Docker Hub publishing
+- `amd64` and `arm64` support
 
-## Architecture
+## Requirements
 
-```text
-zerotier-planet
-├── ZeroTierOne        # Cloned and built from zerotier/ZeroTierOne during image build
-├── ztncui             # Cloned from key-networks/ztncui during image build
-├── portal             # Deployment portal maintained by this project
-└── portal_server.js   # File server, signed links, and client script API
-```
-
-Default ports:
+- A Linux server with a public IPv4 or IPv6 address
+- Docker
+- Firewall access for the following ports
 
 | Port | Protocol | Purpose |
 | --- | --- | --- |
-| `9994` | TCP/UDP | ZeroTier transport |
-| `3443` | TCP | ztncui controller |
-| `3000` | TCP | Deployment portal and file server |
+| `9994` | TCP/UDP | ZeroTier traffic |
+| `3000` | TCP | Unified console, temporary downloads, client installers |
 
-## Repository Layout
-
-```text
-.
-├── .github/workflows/       # Docker Hub publishing workflow
-├── container/               # Container entrypoint and portal server
-├── portal/                  # Deployment portal frontend
-│   └── assets/              # Portal static assets
-├── Dockerfile
-├── deploy.sh
-├── README.md
-└── README.en.md
-```
+Ports can be customized during deployment.
 
 ## Quick Start
 
-### 1. Publish your image
-
-Configure these GitHub repository secrets:
-
-- `DOCKERHUB_USERNAME`
-- `DOCKERHUB_TOKEN`
-
-After pushing to `main` or `master`, GitHub Actions publishes:
-
 ```bash
-${DOCKERHUB_USERNAME}/zerotier-planet:latest
-${DOCKERHUB_USERNAME}/zerotier-planet:<ZeroTierOne-version>
+git clone https://github.com/Onicc/zerotier-planet.git
+cd zerotier-planet
+./deploy.sh
 ```
 
-You can also build locally:
+The script asks for:
 
-```bash
-docker build -t your-dockerhub-username/zerotier-planet:dev .
+- ZeroTier traffic port, for example `9994`
+- Unified console port, for example `3000`
+- Server public IPv4/IPv6 address
+
+After deployment, open:
+
+```text
+http://SERVER_IP:3000
 ```
 
-### 2. Deploy
+## Unlock The Console
+
+The unified console uses the file server key to authorize management actions. After deployment, run this on the server:
 
 ```bash
-DOCKER_IMAGE=your-dockerhub-username/zerotier-planet:latest ./deploy.sh
+docker exec myztplanet cat /app/config/file_server.key
 ```
 
-The installer prompts for:
+If you need to read the mounted directory directly, run `sudo cat ./data/zerotier/config/file_server.key`.
 
-- ZeroTier transport port, for example `9994`
-- Controller port, for example `3443`
-- Deployment portal/file server port, for example `3000`
-- IPv4/IPv6 addresses
+Open the console, go to `Access`, paste the key, and save it. The key is stored only in this browser's `localStorage`.
 
-After installation, it prints:
+## Create A Network
 
-- Deployment portal: `http://SERVER_IP:FILE_SERVER_PORT`
-- Controller UI: `http://SERVER_IP:API_PORT`
-- File server admin key: `./data/zerotier/config/file_server.key`
-
-### 3. Create a network
-
-1. Open the ztncui controller
-2. Sign in with the default account: `admin` / `password`
-3. Change the default password immediately
-4. Create a network and copy the Network ID
-5. Configure address pools and routes
-
-### 4. Enroll clients
-
-Open the deployment portal, paste `file_server.key`, then generate temporary links or install commands.
-
-Linux:
-
-```bash
-curl -fsSL '<temporary-installer-link>' | sudo bash
-```
-
-Non-interactive join:
-
-```bash
-curl -fsSL '<temporary-installer-link>' | sudo env NETWORK_ID=<NETWORK_ID> bash
-```
-
-macOS:
-
-```bash
-curl -fsSL '<temporary-installer-link>' | bash
-```
-
-Non-interactive join:
-
-```bash
-curl -fsSL '<temporary-installer-link>' | NETWORK_ID=<NETWORK_ID> bash
-```
-
-Download planet only:
-
-```bash
-wget -O planet '<temporary-planet-link>'
-```
-
-## Deployment Portal
-
-The deployment portal runs on `FILE_SERVER_PORT` and provides:
-
-- Planet readiness status
-- ztncui controller entry
-- Temporary `planet` download links
-- `wget` command generation
-- Linux/macOS installation command generation
-- Operator and client tutorial
-
-The long-lived admin key is not embedded in generated temporary links. The frontend sends it with a request header and stores it only in the current browser's localStorage.
-
-## API
-
-| Path | Description |
-| --- | --- |
-| `GET /api/status` | Service and file status |
-| `GET /api/link` | Generate a temporary download or installer link; requires `X-File-Server-Key` |
-| `GET /download/planet?...` | Download signed planet file |
-| `GET /install/linux.sh?...` | Fetch signed Linux installer |
-| `GET /install/macos.sh?...` | Fetch signed macOS installer |
+1. Open the unified console: `http://SERVER_IP:3000`
+2. Go to `Networks`
+3. Enter a network name and click `Create`
+4. Select the new network
+5. Use `Easy setup` under `Settings` to configure the managed route and assignment pool
 
 Example:
 
+| Field | Example |
+| --- | --- |
+| Managed route CIDR | `10.147.17.0/24` |
+| Pool start | `10.147.17.10` |
+| Pool end | `10.147.17.250` |
+
+Copy the Network ID after creation. Clients need it when joining the network.
+
+## Manage Networks
+
+After selecting a network in `Networks`, you can manage:
+
+- `Members`: authorize devices, set bridge mode, save labels, add/remove IP assignments, delete members
+- `Settings`: rename the network, switch private mode, apply Easy Setup, configure IPv4/IPv6 assignment modes
+- `Routes`: add/remove managed routes and assignment pools
+- `DNS`: configure the search domain and DNS servers
+- `Raw detail`: inspect the raw network JSON returned by the controller
+
+## Configure Clients
+
+Go to `Client delivery`, choose a link lifetime, then generate the required command.
+
+### Linux Installer
+
+Generate a Linux command in the console, then run it on the client:
+
 ```bash
-curl -H "X-File-Server-Key: $(cat ./data/zerotier/config/file_server.key)" \
-  "http://SERVER_IP:3000/api/link?type=download&file=planet&ttl=600"
+curl -fsSL 'temporary-installer-link' | sudo bash
 ```
 
-## Environment Variables
+The script:
 
-| Variable | Default | Description |
-| --- | --- | --- |
-| `IP_ADDR4` | empty | IPv4 endpoint written into planet |
-| `IP_ADDR6` | empty | IPv6 endpoint written into planet |
-| `ZT_PORT` | `9994` | ZeroTier transport port |
-| `API_PORT` | `3443` | ztncui port |
-| `FILE_SERVER_PORT` | `3000` | Deployment portal and file server port |
-| `PUBLIC_URL` | empty | External URL used behind reverse proxies |
-| `LINK_TTL_SECONDS` | `600` | Default temporary link lifetime |
-| `LINK_MAX_TTL_SECONDS` | `3600` | Maximum temporary link lifetime |
+1. Installs ZeroTier One
+2. Downloads the temporary signed `planet` file
+3. Backs up and replaces `/var/lib/zerotier-one/planet`
+4. Restarts ZeroTier
+5. Prompts for the Network ID and joins the network
 
-## docker-compose
+Non-interactive join:
+
+```bash
+curl -fsSL 'temporary-installer-link' | sudo NETWORK_ID=YOUR_NETWORK_ID bash
+```
+
+### macOS Installer
+
+Generate a macOS command in the console, then run it on the client:
+
+```bash
+curl -fsSL 'temporary-installer-link' | bash
+```
+
+The script:
+
+1. Checks whether ZeroTier is already installed
+2. Uses Homebrew when available
+3. Otherwise downloads the official macOS PKG installer
+4. Downloads the temporary signed `planet` file
+5. Backs up and replaces `/Library/Application Support/ZeroTier/One/planet`
+6. Restarts ZeroTier
+7. Prompts for the Network ID and joins the network
+
+Non-interactive join:
+
+```bash
+curl -fsSL 'temporary-installer-link' | NETWORK_ID=YOUR_NETWORK_ID bash
+```
+
+### Download Planet Only
+
+If ZeroTier is already installed, you can download only the `planet` file:
+
+```bash
+wget -O planet 'temporary-planet-link'
+```
+
+Then manually replace the client's `planet` file and restart ZeroTier.
+
+## Authorize Devices
+
+After a client joins the network, authorize it in the unified console:
+
+1. Open `http://SERVER_IP:3000`
+2. Go to `Networks`
+3. Select the target network
+4. Find the new device in `Members`
+5. Check `Authorized`
+
+Clients can verify connectivity with:
+
+```bash
+zerotier-cli peers
+zerotier-cli listnetworks
+```
+
+## Docker Compose
+
+You can also deploy with Docker Compose:
 
 ```yaml
-version: "3"
-
 services:
   zerotier-planet:
-    image: your-dockerhub-username/zerotier-planet:latest
+    image: onicc/zerotier-planet:latest
     container_name: zerotier-planet
     restart: unless-stopped
     ports:
       - "9994:9994"
       - "9994:9994/udp"
-      - "3443:3443"
       - "3000:3000"
     environment:
-      - IP_ADDR4=<PUBLIC_IPV4>
+      - IP_ADDR4=<SERVER_PUBLIC_IPV4>
       - IP_ADDR6=
       - ZT_PORT=9994
-      - API_PORT=3443
       - FILE_SERVER_PORT=3000
     volumes:
       - ./data/zerotier/dist:/app/dist
-      - ./data/zerotier/ztncui:/app/ztncui
       - ./data/zerotier/one:/var/lib/zerotier-one
       - ./data/zerotier/config:/app/config
 ```
 
-## Security Notes
-
-- Change the default ztncui password immediately
-- Do not publish `file_server.key`
-- Put the deployment portal behind trusted network access or reverse-proxy authentication when possible
-- Keep temporary link lifetimes short, for example 10 minutes
-- Review firewall policy for `9994/tcp`, `9994/udp`, the controller port, and the portal port
-
-## Development
-
-Validation commands:
+Start it:
 
 ```bash
-node --check container/portal_server.js
-node --check portal/app.js
-bash -n deploy.sh
-sh -n container/entrypoint.sh
+docker compose up -d
 ```
 
-Local image build:
+## Common Commands
+
+List containers:
 
 ```bash
-docker build -t zerotier-planet:dev .
+docker ps
 ```
 
-Optional build arguments:
+View logs:
 
-| Argument | Default | Description |
-| --- | --- | --- |
-| `TAG` | `actions` | ZeroTierOne build ref |
-| `ZEROTIER_REPO` | `https://github.com/zerotier/ZeroTierOne.git` | ZeroTierOne repository |
-| `ZTNCUI_REPO` | `https://github.com/key-networks/ztncui.git` | ztncui repository |
-| `ZTNCUI_REF` | `master` | ztncui build ref |
+```bash
+docker logs -f myztplanet
+```
 
-## Upstream Projects
+View deployment information:
 
-- ZeroTierOne: <https://github.com/zerotier/ZeroTierOne>
-- ztncui: <https://github.com/key-networks/ztncui>
+```bash
+./deploy.sh
+# choose 4. View information
+```
 
-## License
+Update the image:
 
-This repository integrates builds and patches for GPL-licensed projects. When publishing images, ensure compliance with the license terms of ZeroTierOne, ztncui, and other upstream dependencies.
+```bash
+docker pull onicc/zerotier-planet:latest
+./deploy.sh
+# choose 3. Update
+```
+
+Restart the container:
+
+```bash
+docker restart myztplanet
+```
+
+## Security Recommendations
+
+- Do not share the management key. Prefer `docker exec myztplanet cat /app/config/file_server.key` when reading it.
+- Expose the unified console only to trusted users
+- Restrict `3000/tcp` with a firewall when possible
+- Back up `./data/zerotier` regularly
+- Use short lifetimes for temporary download links
+- Remove members that are no longer used
+
+## FAQ
+
+### Why is there no 3443 controller UI?
+
+Network management has been integrated into the `3000` unified console. A separate ztncui backend is no longer required.
+
+### Clients joined the network but cannot communicate. What should I check?
+
+Check:
+
+- `9994/tcp` and `9994/udp` are open on the server
+- The client replaced the correct `planet` file
+- The client joined the correct Network ID
+- The device is authorized in the unified console
+- Routes and assignment pools are configured correctly
+
+### The console cannot generate links. What should I check?
+
+Check:
+
+- The `planet` file has been generated
+- `Server key` contains the output of `docker exec myztplanet cat /app/config/file_server.key`
+- You are visiting the correct console port
+
+### Does it support Windows scripts?
+
+Not currently. The console provides Linux and macOS scripts. Windows users need to install ZeroTier manually, replace the `planet` file, and restart the service.
+
+### Does it support domain names in planet?
+
+Not currently. Use the server's public IP address.
