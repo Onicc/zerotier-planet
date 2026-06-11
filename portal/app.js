@@ -25,6 +25,7 @@ const elements = {
   firstCurrentPassword: $('firstCurrentPassword'),
   firstNewPassword: $('firstNewPassword'),
   firstConfirmPassword: $('firstConfirmPassword'),
+  sidebarToggle: $('sidebarToggle'),
   toast: $('toast'),
   signedInUser: $('signedInUser'),
   sessionState: $('sessionState'),
@@ -677,7 +678,7 @@ function renderMembers(members) {
         <td data-label="State">${renderPeerState(member)}</td>
         <td data-label="Authorized"><input class="member-authorized-input" type="checkbox" ${member.authorized ? 'checked' : ''} aria-label="Authorized"></td>
         <td data-label="Bridge"><input class="member-bridge-input" type="checkbox" ${member.activeBridge ? 'checked' : ''} aria-label="Active bridge"></td>
-        <td data-label="IP assignments">
+        <td class="ip-assignments-cell" data-label="IP assignments">
           <div class="ip-stack">
             <div class="ip-chip-list">
               ${ips.map((ip, index) => `
@@ -685,12 +686,17 @@ function renderMembers(members) {
               `).join('') || '<span class="muted">None</span>'}
             </div>
             <form class="mini-form member-ip-form">
-              <input type="text" placeholder="Add IP">
+              <input type="text" placeholder="IP">
               <button class="icon-button" type="submit">+</button>
             </form>
           </div>
         </td>
-        <td data-label="Actions"><button class="button small danger" data-action="delete-member" type="button">Delete</button></td>
+        <td class="actions-cell" data-label="Actions">
+          <details class="actions-menu">
+            <summary>Actions</summary>
+            <button class="danger-action" data-action="delete-member" type="button">Delete member</button>
+          </details>
+        </td>
       </tr>
     `;
   }).join('');
@@ -1258,12 +1264,25 @@ function updateEasyPoolPreview() {
     : `Default pool will use ${defaults.poolStart} - ${defaults.poolEnd}.`;
 }
 
+function setSidebarCollapsed(collapsed) {
+  const shouldCollapse = Boolean(collapsed);
+  document.body.classList.toggle('sidebar-collapsed', shouldCollapse);
+  localStorage.setItem('ztp_sidebar_collapsed', shouldCollapse ? '1' : '0');
+  if (elements.sidebarToggle) {
+    elements.sidebarToggle.setAttribute('aria-expanded', shouldCollapse ? 'false' : 'true');
+    elements.sidebarToggle.setAttribute('aria-label', shouldCollapse ? 'Expand sidebar' : 'Collapse sidebar');
+  }
+}
+
 function bindEvents() {
   elements.loginForm.addEventListener('submit', (event) => login(event).catch((error) => toast(error.message)));
   elements.firstPasswordForm.addEventListener('submit', (event) => submitFirstPassword(event).catch((error) => toast(error.message)));
   $('resetPasswordForm').addEventListener('submit', (event) => submitResetPassword(event).catch((error) => toast(error.message)));
   $('logoutButton').addEventListener('click', () => logout());
   $('refreshAllButton').addEventListener('click', () => refreshAllWithFeedback().catch((error) => toast(error.message)));
+  elements.sidebarToggle?.addEventListener('click', () => {
+    setSidebarCollapsed(!document.body.classList.contains('sidebar-collapsed'));
+  });
   $('createNetworkForm').addEventListener('submit', (event) => createNetwork(event).catch((error) => toast(error.message)));
   $('networkBasicsForm').addEventListener('submit', (event) => submitBasics(event).catch((error) => toast(error.message)));
   $('assignModeForm').addEventListener('submit', (event) => submitAssignModes(event).catch((error) => toast(error.message)));
@@ -1346,6 +1365,7 @@ function bindEvents() {
   });
 }
 
+setSidebarCollapsed(localStorage.getItem('ztp_sidebar_collapsed') === '1');
 bindEvents();
 fetchPublicStatus()
   .then(async (status) => {

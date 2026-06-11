@@ -66,19 +66,24 @@
 
     <div class="app-shell" id="appShell" hidden>
       <aside class="sidebar">
-        <a class="brand" href="#overview" aria-label="ZeroTier Planet Console">
-          <span class="brand-mark">ZP</span>
-          <span>
-            <strong>ZeroTier Planet</strong>
-            <small>Control plane</small>
-          </span>
-        </a>
+        <div class="sidebar-top">
+          <a class="brand" href="#overview" aria-label="ZeroTier Planet Console">
+            <span class="brand-mark">ZP</span>
+            <span class="brand-copy">
+              <strong>ZeroTier Planet</strong>
+              <small>Control plane</small>
+            </span>
+          </a>
+          <button class="sidebar-toggle" id="sidebarToggle" type="button" aria-label="Collapse sidebar" aria-expanded="true">
+            <span></span>
+          </button>
+        </div>
         <nav class="side-nav" aria-label="Primary">
-          <a href="#overview" data-nav="overview"><span>Overview</span></a>
-          <a href="#networks" data-nav="networks"><span>Networks</span></a>
-          <a href="#delivery" data-nav="delivery"><span>Client delivery</span></a>
-          <a href="#guide" data-nav="guide"><span>Guide</span></a>
-          <a href="#settings" data-nav="settings"><span>Settings</span></a>
+          <a href="#overview" data-nav="overview" title="Overview"><span class="nav-icon">O</span><span class="nav-label">Overview</span></a>
+          <a href="#networks" data-nav="networks" title="Networks"><span class="nav-icon">N</span><span class="nav-label">Networks</span></a>
+          <a href="#delivery" data-nav="delivery" title="Client delivery"><span class="nav-icon">D</span><span class="nav-label">Client delivery</span></a>
+          <a href="#guide" data-nav="guide" title="Guide"><span class="nav-icon">G</span><span class="nav-label">Guide</span></a>
+          <a href="#settings" data-nav="settings" title="Settings"><span class="nav-icon">S</span><span class="nav-label">Settings</span></a>
         </nav>
         <div class="sidebar-status">
           <span class="label">Signed in as</span>
@@ -357,7 +362,7 @@
                 </div>
 
                 <div class="tab-panel" data-panel="dns">
-                  <form class="panel form-panel narrow-form" id="dnsForm">
+                  <form class="panel form-panel" id="dnsForm">
                     <div class="panel-heading"><h3>DNS configuration</h3></div>
                     <label class="field">
                       <span>Search domain</span>
