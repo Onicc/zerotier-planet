@@ -31,7 +31,7 @@
         <form class="auth-card active" id="loginForm">
           <p class="eyebrow">Operator login</p>
           <h1>Sign in to the console</h1>
-          <p class="muted">Initial credentials are <code>admin</code> / <code>password</code>. The first sign-in requires a new password.</p>
+          <p class="muted">Use the initial credentials configured by the deployment. The first sign-in requires a new password.</p>
           <label class="field">
             <span>Username</span>
             <input id="loginUsername" type="text" autocomplete="username" value="admin">
@@ -265,7 +265,12 @@
                     </form>
 
                     <form class="panel form-panel" id="easySetupForm">
-                      <div class="panel-heading"><h3>Easy setup</h3></div>
+                      <div class="panel-heading">
+                        <div>
+                          <h3>Easy setup</h3>
+                          <p class="muted">Set the managed route and IPv4 assignment range in one action.</p>
+                        </div>
+                      </div>
                       <label class="field">
                         <span>Managed route CIDR</span>
                         <input id="easyCidr" type="text" placeholder="10.147.17.0/24">
@@ -280,6 +285,7 @@
                           <input id="easyPoolEnd" type="text" placeholder="10.147.17.250">
                         </label>
                       </div>
+                      <p class="form-note">Pool start and end are calculated automatically from the CIDR when left unchanged.</p>
                       <button class="button primary" type="submit">Apply easy setup</button>
                     </form>
 
@@ -310,6 +316,7 @@
                   <div class="settings-grid">
                     <form class="panel form-panel" id="routeForm">
                       <div class="panel-heading"><h3>Add route</h3></div>
+                      <p class="muted">Use this for additional routes. Manage the primary IPv4 route from Easy setup.</p>
                       <label class="field">
                         <span>Target CIDR</span>
                         <input id="routeTarget" type="text" placeholder="10.147.17.0/24">
@@ -323,6 +330,7 @@
 
                     <form class="panel form-panel" id="poolForm">
                       <div class="panel-heading"><h3>Add assignment pool</h3></div>
+                      <p class="muted">Use this for additional IPv4 ranges. Manage the primary pool from Easy setup.</p>
                       <div class="field-grid two">
                         <label class="field">
                           <span>Range start</span>

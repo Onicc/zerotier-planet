@@ -379,6 +379,11 @@ h3 {
   background: var(--surface-soft);
 }
 
+.button:disabled {
+  cursor: wait;
+  opacity: 0.62;
+}
+
 .button.primary {
   border-color: var(--blue);
   color: #fff;
@@ -657,6 +662,12 @@ h3 {
   color: var(--muted);
   font-size: 13px;
   font-weight: 780;
+}
+
+.form-note {
+  margin: -2px 0 0;
+  color: var(--muted);
+  font-size: 13px;
 }
 
 .compact-field {
@@ -1016,6 +1027,11 @@ h3 {
 .config-row strong,
 .config-row small {
   display: block;
+}
+
+.config-row > span:first-child {
+  min-width: 0;
+  flex: 1 1 auto;
 }
 
 .config-row small {

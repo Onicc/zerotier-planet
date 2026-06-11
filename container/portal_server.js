@@ -13,6 +13,7 @@ const assetsPath = path.join(portalPath, 'assets');
 const secretKeyPath = path.join(configPath, 'file_server.key');
 const adminAuthPath = path.join(configPath, 'admin_auth.json');
 const memberNamesPath = path.join(configPath, 'member_names.json');
+const networkProfilesPath = path.join(configPath, 'network_profiles.json');
 const ztTokenPath = path.join(ztHome, 'authtoken.secret');
 const publicUrl = (process.env.PUBLIC_URL || '').replace(/\/+$/, '');
 const defaultTtl = Number(process.env.LINK_TTL_SECONDS || 600);
@@ -112,6 +113,95 @@ function timingEqual(left, right, encoding = 'hex') {
   const leftBuffer = Buffer.from(String(left || ''), encoding);
   const rightBuffer = Buffer.from(String(right || ''), encoding);
   return leftBuffer.length === rightBuffer.length && crypto.timingSafeEqual(leftBuffer, rightBuffer);
+}
+
+function parseIpv4(value) {
+  const parts = String(value || '').trim().split('.');
+  if (parts.length !== 4) {
+    return null;
+  }
+  let parsed = 0;
+  for (const part of parts) {
+    if (!/^\d{1,3}$/.test(part)) {
+      return null;
+    }
+    const number = Number(part);
+    if (number < 0 || number > 255) {
+      return null;
+    }
+    parsed = (parsed << 8) + number;
+  }
+  return parsed >>> 0;
+}
+
+function formatIpv4(value) {
+  return [
+    (value >>> 24) & 255,
+    (value >>> 16) & 255,
+    (value >>> 8) & 255,
+    value & 255,
+  ].join('.');
+}
+
+function parseIpv4Cidr(cidr) {
+  const [address, prefixText] = String(cidr || '').trim().split('/');
+  const prefix = Number(prefixText);
+  const ip = parseIpv4(address);
+  if (ip === null || !Number.isInteger(prefix) || prefix < 1 || prefix > 30) {
+    return null;
+  }
+  const mask = (0xffffffff << (32 - prefix)) >>> 0;
+  const network = (ip & mask) >>> 0;
+  const broadcast = (network | (~mask >>> 0)) >>> 0;
+  return { address, prefix, network, broadcast, normalized: `${formatIpv4(network)}/${prefix}` };
+}
+
+function parseIpv4RouteCidr(cidr) {
+  const [address, prefixText] = String(cidr || '').trim().split('/');
+  const prefix = Number(prefixText);
+  const ip = parseIpv4(address);
+  if (ip === null || !Number.isInteger(prefix) || prefix < 0 || prefix > 32) {
+    return null;
+  }
+  const mask = prefix === 0 ? 0 : (0xffffffff << (32 - prefix)) >>> 0;
+  const network = (ip & mask) >>> 0;
+  return { address, prefix, network, normalized: `${formatIpv4(network)}/${prefix}` };
+}
+
+function defaultPoolForCidr(cidr) {
+  const parsed = parseIpv4Cidr(cidr);
+  if (!parsed) {
+    return null;
+  }
+  const usableStart = parsed.network + 1;
+  const usableEnd = parsed.broadcast - 1;
+  if (usableEnd < usableStart) {
+    return null;
+  }
+  const usableCount = usableEnd - usableStart + 1;
+  const start = usableCount <= 16 ? usableStart : usableStart + 9;
+  const end = usableCount <= 16 ? usableEnd : usableEnd - 5;
+  return {
+    cidr: parsed.normalized,
+    poolStart: formatIpv4(start >>> 0),
+    poolEnd: formatIpv4(end >>> 0),
+  };
+}
+
+function validatePoolRange(cidr, poolStart, poolEnd) {
+  const parsed = parseIpv4Cidr(cidr);
+  const start = parseIpv4(poolStart);
+  const end = parseIpv4(poolEnd);
+  if (!parsed || start === null || end === null) {
+    return 'Pool start and end must be valid IPv4 addresses';
+  }
+  if (start > end) {
+    return 'Pool start must be lower than or equal to pool end';
+  }
+  if (start <= parsed.network || end >= parsed.broadcast) {
+    return 'Pool range must be inside the managed route CIDR';
+  }
+  return '';
 }
 
 function createAuthStore(username = defaultAdminUsername || 'admin', password = defaultAdminPassword || 'password') {
@@ -275,6 +365,59 @@ function removeMemberName(memberId) {
   const names = loadMemberNames();
   delete names[memberId];
   writeJsonFile(memberNamesPath, names);
+}
+
+function loadNetworkProfiles() {
+  return readJsonFile(networkProfilesPath, {});
+}
+
+function saveNetworkProfiles(profiles) {
+  writeJsonFile(networkProfilesPath, profiles);
+}
+
+function getNetworkProfile(nwid) {
+  return loadNetworkProfiles()[nwid] || {};
+}
+
+function saveNetworkProfile(nwid, profile) {
+  const profiles = loadNetworkProfiles();
+  profiles[nwid] = {
+    ...(profiles[nwid] || {}),
+    ...profile,
+    updatedAt: new Date().toISOString(),
+  };
+  saveNetworkProfiles(profiles);
+  return profiles[nwid];
+}
+
+function hasManagedProfile(profile) {
+  return Boolean(profile.managedRouteTarget || profile.managedPoolStart || profile.managedPoolEnd);
+}
+
+function updateNetworkProfile(nwid, updater) {
+  const profiles = loadNetworkProfiles();
+  const nextProfile = updater({ ...(profiles[nwid] || {}) });
+  if (nextProfile) {
+    delete nextProfile.updatedAt;
+  }
+  if (nextProfile && Object.keys(nextProfile).length) {
+    profiles[nwid] = {
+      ...nextProfile,
+      updatedAt: new Date().toISOString(),
+    };
+  } else {
+    delete profiles[nwid];
+  }
+  saveNetworkProfiles(profiles);
+  return profiles[nwid] || {};
+}
+
+function deleteNetworkProfile(nwid) {
+  const profiles = loadNetworkProfiles();
+  if (profiles[nwid]) {
+    delete profiles[nwid];
+    saveNetworkProfiles(profiles);
+  }
 }
 
 function readRequestBody(req) {
@@ -604,7 +747,7 @@ async function getNetworkBundle(nwid) {
     return String(a.name || a.id).localeCompare(String(b.name || b.id));
   });
 
-  return { network, members, controller: status };
+  return { network, members, controller: status, profile: getNetworkProfile(nwid) };
 }
 
 async function createNetwork(body) {
@@ -631,24 +774,76 @@ async function updateNetwork(nwid, body) {
 }
 
 async function easySetup(nwid, body) {
-  const networkCIDR = String(body.networkCIDR || '').trim();
-  const poolStart = String(body.poolStart || '').trim();
-  const poolEnd = String(body.poolEnd || '').trim();
-  if (!networkCIDR || !poolStart || !poolEnd) {
-    throw Object.assign(new Error('CIDR, pool start, and pool end are required'), { statusCode: 400 });
+  const defaults = defaultPoolForCidr(body.networkCIDR);
+  if (!defaults) {
+    throw Object.assign(new Error('Enter a valid IPv4 CIDR between /1 and /30'), { statusCode: 400 });
   }
-  return ztRequest('POST', `/controller/network/${encodeURIComponent(nwid)}`, {
-    routes: [{ target: networkCIDR, via: null }],
-    ipAssignmentPools: [{ ipRangeStart: poolStart, ipRangeEnd: poolEnd }],
+  const networkCIDR = defaults.cidr;
+  const poolStart = String(body.poolStart || defaults.poolStart).trim();
+  const poolEnd = String(body.poolEnd || defaults.poolEnd).trim();
+  const poolError = validatePoolRange(networkCIDR, poolStart, poolEnd);
+  if (poolError) {
+    throw Object.assign(new Error(poolError), { statusCode: 400 });
+  }
+
+  const network = await ztRequest('GET', `/controller/network/${encodeURIComponent(nwid)}`);
+  const profile = getNetworkProfile(nwid);
+  const routes = Array.isArray(network.routes) ? network.routes.slice() : [];
+  const ipAssignmentPools = Array.isArray(network.ipAssignmentPools) ? network.ipAssignmentPools.slice() : [];
+  const nextRoute = { target: networkCIDR, via: null };
+  const nextPool = { ipRangeStart: poolStart, ipRangeEnd: poolEnd };
+  let routeIndex = routes.findIndex((route) => (
+    profile.managedRouteTarget && route.target === profile.managedRouteTarget && !route.via
+  ));
+  let poolIndex = ipAssignmentPools.findIndex((pool) => (
+    profile.managedPoolStart
+    && profile.managedPoolEnd
+    && pool.ipRangeStart === profile.managedPoolStart
+    && pool.ipRangeEnd === profile.managedPoolEnd
+  ));
+
+  if (routeIndex < 0 && !hasManagedProfile(profile)) {
+    routeIndex = routes.findIndex((route) => !route.via && defaultPoolForCidr(route.target));
+  }
+  if (poolIndex < 0 && !hasManagedProfile(profile)) {
+    poolIndex = ipAssignmentPools.findIndex((pool) => {
+      const start = parseIpv4(pool.ipRangeStart);
+      const end = parseIpv4(pool.ipRangeEnd);
+      return start !== null && end !== null;
+    });
+  }
+
+  if (routeIndex >= 0) {
+    routes[routeIndex] = nextRoute;
+  } else if (!routes.some((route) => route.target === nextRoute.target && !route.via)) {
+    routes.unshift(nextRoute);
+  }
+
+  if (poolIndex >= 0) {
+    ipAssignmentPools[poolIndex] = nextPool;
+  } else {
+    ipAssignmentPools.unshift(nextPool);
+  }
+
+  const updated = await updateNetwork(nwid, {
+    routes,
+    ipAssignmentPools,
     v4AssignMode: { zt: true },
   });
+  saveNetworkProfile(nwid, {
+    managedRouteTarget: nextRoute.target,
+    managedPoolStart: nextPool.ipRangeStart,
+    managedPoolEnd: nextPool.ipRangeEnd,
+  });
+  return updated;
 }
 
 async function addRoute(nwid, body) {
-  const target = String(body.target || '').trim();
-  if (!target) {
-    throw Object.assign(new Error('Route target is required'), { statusCode: 400 });
+  const parsedTarget = parseIpv4RouteCidr(body.target);
+  if (!parsedTarget) {
+    throw Object.assign(new Error('Route target must be a valid IPv4 CIDR'), { statusCode: 400 });
   }
+  const target = parsedTarget.normalized;
   const network = await ztRequest('GET', `/controller/network/${encodeURIComponent(nwid)}`);
   const routes = Array.isArray(network.routes) ? network.routes.slice() : [];
   if (routes.some((route) => route.target === target)) {
@@ -662,7 +857,14 @@ async function deleteRoute(nwid, query) {
   const target = String(query.target || '').trim();
   const network = await ztRequest('GET', `/controller/network/${encodeURIComponent(nwid)}`);
   const routes = (Array.isArray(network.routes) ? network.routes : []).filter((route) => route.target !== target);
-  return updateNetwork(nwid, { routes });
+  const updated = await updateNetwork(nwid, { routes });
+  updateNetworkProfile(nwid, (profile) => {
+    if (profile.managedRouteTarget === target) {
+      delete profile.managedRouteTarget;
+    }
+    return profile;
+  });
+  return updated;
 }
 
 async function addIpPool(nwid, body) {
@@ -671,8 +873,19 @@ async function addIpPool(nwid, body) {
   if (!ipRangeStart || !ipRangeEnd) {
     throw Object.assign(new Error('IP range start and end are required'), { statusCode: 400 });
   }
+  const start = parseIpv4(ipRangeStart);
+  const end = parseIpv4(ipRangeEnd);
+  if (start === null || end === null) {
+    throw Object.assign(new Error('IP range start and end must be valid IPv4 addresses'), { statusCode: 400 });
+  }
+  if (start > end) {
+    throw Object.assign(new Error('IP range start must be lower than or equal to range end'), { statusCode: 400 });
+  }
   const network = await ztRequest('GET', `/controller/network/${encodeURIComponent(nwid)}`);
   const ipAssignmentPools = Array.isArray(network.ipAssignmentPools) ? network.ipAssignmentPools.slice() : [];
+  if (ipAssignmentPools.some((pool) => pool.ipRangeStart === ipRangeStart && pool.ipRangeEnd === ipRangeEnd)) {
+    throw Object.assign(new Error('Assignment pool already exists'), { statusCode: 409 });
+  }
   ipAssignmentPools.push({ ipRangeStart, ipRangeEnd });
   return updateNetwork(nwid, { ipAssignmentPools });
 }
@@ -683,7 +896,15 @@ async function deleteIpPool(nwid, query) {
   const network = await ztRequest('GET', `/controller/network/${encodeURIComponent(nwid)}`);
   const ipAssignmentPools = (Array.isArray(network.ipAssignmentPools) ? network.ipAssignmentPools : [])
     .filter((pool) => pool.ipRangeStart !== start || pool.ipRangeEnd !== end);
-  return updateNetwork(nwid, { ipAssignmentPools });
+  const updated = await updateNetwork(nwid, { ipAssignmentPools });
+  updateNetworkProfile(nwid, (profile) => {
+    if (profile.managedPoolStart === start && profile.managedPoolEnd === end) {
+      delete profile.managedPoolStart;
+      delete profile.managedPoolEnd;
+    }
+    return profile;
+  });
+  return updated;
 }
 
 async function updateMember(nwid, memberId, body) {
@@ -788,6 +1009,7 @@ async function handleControllerApi(req, res, parsedUrl) {
       }
       if (method === 'DELETE') {
         const deleted = await ztRequest('DELETE', `/controller/network/${encodeURIComponent(nwid)}`);
+        deleteNetworkProfile(nwid);
         return sendJson(res, 200, { deleted: true, network: deleted });
       }
     }

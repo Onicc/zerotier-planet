@@ -10,6 +10,7 @@ const state = {
   activePage: 'overview',
   activeTab: 'members',
   networkFilter: '',
+  easyPoolTouched: false,
 };
 
 const $ = (id) => document.getElementById(id);
@@ -81,6 +82,8 @@ const pageMeta = {
   settings: ['Security', 'Settings'],
 };
 
+const fallbackCidr = '10.147.17.0/24';
+
 function toast(message) {
   elements.toast.textContent = message;
   elements.toast.classList.add('visible');
@@ -120,6 +123,133 @@ function clearPasswordFields() {
   ].filter(Boolean).forEach((input) => {
     input.value = '';
   });
+}
+
+function parseIpv4(value) {
+  const parts = String(value || '').trim().split('.');
+  if (parts.length !== 4) {
+    return null;
+  }
+  let parsed = 0;
+  for (const part of parts) {
+    if (!/^\d{1,3}$/.test(part)) {
+      return null;
+    }
+    const number = Number(part);
+    if (number < 0 || number > 255) {
+      return null;
+    }
+    parsed = (parsed << 8) + number;
+  }
+  return parsed >>> 0;
+}
+
+function formatIpv4(value) {
+  return [
+    (value >>> 24) & 255,
+    (value >>> 16) & 255,
+    (value >>> 8) & 255,
+    value & 255,
+  ].join('.');
+}
+
+function parseIpv4Cidr(cidr) {
+  const [address, prefixText] = String(cidr || '').trim().split('/');
+  const prefix = Number(prefixText);
+  const ip = parseIpv4(address);
+  if (ip === null || !Number.isInteger(prefix) || prefix < 1 || prefix > 30) {
+    return null;
+  }
+  const mask = (0xffffffff << (32 - prefix)) >>> 0;
+  const network = (ip & mask) >>> 0;
+  const broadcast = (network | (~mask >>> 0)) >>> 0;
+  return { network, broadcast, prefix, normalized: `${formatIpv4(network)}/${prefix}` };
+}
+
+function parseIpv4RouteCidr(cidr) {
+  const [address, prefixText] = String(cidr || '').trim().split('/');
+  const prefix = Number(prefixText);
+  const ip = parseIpv4(address);
+  if (ip === null || !Number.isInteger(prefix) || prefix < 0 || prefix > 32) {
+    return null;
+  }
+  const mask = prefix === 0 ? 0 : (0xffffffff << (32 - prefix)) >>> 0;
+  const network = (ip & mask) >>> 0;
+  return { network, prefix, normalized: `${formatIpv4(network)}/${prefix}` };
+}
+
+function defaultPoolForCidr(cidr) {
+  const parsed = parseIpv4Cidr(cidr);
+  if (!parsed) {
+    return null;
+  }
+  const usableStart = parsed.network + 1;
+  const usableEnd = parsed.broadcast - 1;
+  if (usableEnd < usableStart) {
+    return null;
+  }
+  const usableCount = usableEnd - usableStart + 1;
+  const start = usableCount <= 16 ? usableStart : usableStart + 9;
+  const end = usableCount <= 16 ? usableEnd : usableEnd - 5;
+  return {
+    cidr: parsed.normalized,
+    poolStart: formatIpv4(start >>> 0),
+    poolEnd: formatIpv4(end >>> 0),
+  };
+}
+
+function currentManagedRoute(network) {
+  const routes = Array.isArray(network?.routes) ? network.routes : [];
+  const profile = state.selectedBundle?.profile || {};
+  if (profile.managedRouteTarget || profile.managedPoolStart || profile.managedPoolEnd) {
+    return routes.find((route) => route.target === profile.managedRouteTarget && !route.via) || null;
+  }
+  return routes.find((route) => !route.via && parseIpv4Cidr(route.target)) || null;
+}
+
+function currentManagedPool(network) {
+  const pools = Array.isArray(network?.ipAssignmentPools) ? network.ipAssignmentPools : [];
+  const profile = state.selectedBundle?.profile || {};
+  if (profile.managedRouteTarget || profile.managedPoolStart || profile.managedPoolEnd) {
+    return pools.find((pool) => (
+      pool.ipRangeStart === profile.managedPoolStart
+      && pool.ipRangeEnd === profile.managedPoolEnd
+    )) || null;
+  }
+  return pools.find((pool) => parseIpv4(pool.ipRangeStart) !== null && parseIpv4(pool.ipRangeEnd) !== null) || null;
+}
+
+function poolRangeError(cidr, poolStart, poolEnd) {
+  const parsed = parseIpv4Cidr(cidr);
+  const start = parseIpv4(poolStart);
+  const end = parseIpv4(poolEnd);
+  if (!parsed || start === null || end === null) {
+    return 'Pool start and end must be valid IPv4 addresses.';
+  }
+  if (start > end) {
+    return 'Pool start must be lower than or equal to pool end.';
+  }
+  if (start <= parsed.network || end >= parsed.broadcast) {
+    return 'Pool range must stay inside the managed route CIDR.';
+  }
+  return '';
+}
+
+async function withPending(form, pendingText, operation) {
+  const submitButton = form?.querySelector('button[type="submit"]');
+  const originalText = submitButton?.textContent || '';
+  if (submitButton) {
+    submitButton.disabled = true;
+    submitButton.textContent = pendingText;
+  }
+  try {
+    return await operation();
+  } finally {
+    if (submitButton) {
+      submitButton.disabled = false;
+      submitButton.textContent = originalText;
+    }
+  }
 }
 
 async function requestJson(path, options = {}) {
@@ -192,13 +322,14 @@ function validatePasswordPair(password, confirmPassword) {
 
 async function submitFirstPassword(event) {
   event.preventDefault();
+  const form = event.currentTarget;
   const currentPassword = elements.firstCurrentPassword.value;
   const newPassword = elements.firstNewPassword.value;
   validatePasswordPair(newPassword, elements.firstConfirmPassword.value);
-  const payload = await requestJson('/api/auth/password', {
+  const payload = await withPending(form, 'Updating...', () => requestJson('/api/auth/password', {
     method: 'POST',
     body: { currentPassword, newPassword },
-  });
+  }));
   saveSession(payload);
   clearPasswordFields();
   toast('Password updated.');
@@ -213,14 +344,12 @@ async function submitResetPassword(event) {
   if (!window.confirm('Reset the console password and invalidate existing sessions?')) {
     return;
   }
-  const payload = await requestJson('/api/auth/reset', {
+  const payload = await withPending(form, 'Resetting...', () => requestJson('/api/auth/reset', {
     method: 'POST',
     body: { newPassword },
-  });
+  }));
   saveSession(payload);
-  if (form && typeof form.reset === 'function') {
-    form.reset();
-  }
+  form.reset();
   clearPasswordFields();
   toast('Password reset.');
 }
@@ -378,8 +507,10 @@ function renderNetworkList() {
 function renderDeliveryNetworks() {
   if (!state.networks.length) {
     elements.deliveryNetwork.innerHTML = '<option value="">No networks</option>';
+    elements.deliveryNetwork.disabled = true;
     return;
   }
+  elements.deliveryNetwork.disabled = false;
   elements.deliveryNetwork.innerHTML = state.networks.map((network) => (
     `<option value="${escapeAttr(network.nwid)}">${escapeHtml(network.name || network.nwid)} (${escapeHtml(network.nwid)})</option>`
   )).join('');
@@ -420,6 +551,20 @@ function renderSelectedNetwork() {
   elements.selectedNetworkId.textContent = network.nwid || state.selectedNetworkId;
   elements.selectedNetworkPrivacy.textContent = network.private ? 'Private' : 'Public';
   elements.selectedNetworkPrivacy.className = network.private ? 'pill good' : 'pill warn';
+  elements.rawNetworkJson.textContent = JSON.stringify(network, null, 2);
+  syncNetworkForms(network);
+
+  renderMembers(bundle.members || []);
+  renderRoutes(network.routes || [], currentManagedRoute(network));
+  renderPools(network.ipAssignmentPools || [], currentManagedPool(network));
+}
+
+function syncNetworkForms(network) {
+  const route = currentManagedRoute(network);
+  const pool = currentManagedPool(network);
+  const cidr = route?.target || fallbackCidr;
+  const defaults = defaultPoolForCidr(cidr) || defaultPoolForCidr(fallbackCidr);
+
   elements.networkNameInput.value = network.name || '';
   elements.networkPrivateInput.checked = Boolean(network.private);
   elements.v4AssignInput.checked = Boolean(network.v4AssignMode?.zt);
@@ -428,11 +573,17 @@ function renderSelectedNetwork() {
   elements.v6ZtInput.checked = Boolean(network.v6AssignMode?.zt);
   elements.dnsDomain.value = network.dns?.domain || '';
   elements.dnsServers.value = Array.isArray(network.dns?.servers) ? network.dns.servers.join('\n') : '';
-  elements.rawNetworkJson.textContent = JSON.stringify(network, null, 2);
-
-  renderMembers(bundle.members || []);
-  renderRoutes(network.routes || []);
-  renderPools(network.ipAssignmentPools || []);
+  elements.easyCidr.value = route?.target || defaults.cidr;
+  elements.easyPoolStart.value = pool?.ipRangeStart || defaults.poolStart;
+  elements.easyPoolEnd.value = pool?.ipRangeEnd || defaults.poolEnd;
+  state.easyPoolTouched = false;
+  $('routeTarget').value = '';
+  $('routeVia').value = '';
+  $('poolStart').value = '';
+  $('poolEnd').value = '';
+  $('routeTarget').placeholder = defaults.cidr;
+  $('poolStart').placeholder = defaults.poolStart;
+  $('poolEnd').placeholder = defaults.poolEnd;
 }
 
 function renderMembers(members) {
@@ -489,26 +640,37 @@ function renderPeerState(member) {
   return '<span class="status-dot muted-dot">Offline</span>';
 }
 
-function renderRoutes(routes) {
-  elements.routesList.innerHTML = routes.length ? routes.map((route) => `
+function renderRoutes(routes, managedRoute) {
+  elements.routesList.innerHTML = routes.length ? routes.map((route) => {
+    const managed = managedRoute && route.target === managedRoute.target && !route.via && !managedRoute.via;
+    return `
     <div class="config-row">
-      <span><strong>${escapeHtml(route.target)}</strong><small>${route.via ? `via ${escapeHtml(route.via)}` : 'local ZeroTier route'}</small></span>
+      <span><strong>${escapeHtml(route.target)}</strong><small>${route.via ? `via ${escapeHtml(route.via)}` : managed ? 'managed local route' : 'local ZeroTier route'}</small></span>
+      ${managed ? '<span class="pill good">Easy setup</span>' : ''}
       <button class="button small" data-route-target="${escapeAttr(route.target)}" type="button">Remove</button>
     </div>
-  `).join('') : '<div class="empty-inline">No routes configured.</div>';
+  `;
+  }).join('') : '<div class="empty-inline">No routes configured.</div>';
 }
 
-function renderPools(pools) {
-  elements.poolsList.innerHTML = pools.length ? pools.map((pool) => `
+function renderPools(pools, managedPool) {
+  elements.poolsList.innerHTML = pools.length ? pools.map((pool) => {
+    const managed = managedPool
+      && pool.ipRangeStart === managedPool.ipRangeStart
+      && pool.ipRangeEnd === managedPool.ipRangeEnd;
+    return `
     <div class="config-row">
       <span><strong>${escapeHtml(pool.ipRangeStart)} - ${escapeHtml(pool.ipRangeEnd)}</strong><small>managed assignment range</small></span>
+      ${managed ? '<span class="pill good">Easy setup</span>' : ''}
       <button class="button small" data-pool-start="${escapeAttr(pool.ipRangeStart)}" data-pool-end="${escapeAttr(pool.ipRangeEnd)}" type="button">Remove</button>
     </div>
-  `).join('') : '<div class="empty-inline">No assignment pools configured.</div>';
+  `;
+  }).join('') : '<div class="empty-inline">No assignment pools configured.</div>';
 }
 
 async function createNetwork(event) {
   event.preventDefault();
+  const form = event.currentTarget;
   const input = $('newNetworkName');
   const name = input.value.trim();
   if (!name) {
@@ -516,27 +678,29 @@ async function createNetwork(event) {
     input.focus();
     return;
   }
-  const payload = await requestJson('/api/controller/networks', {
+  const payload = await withPending(form, 'Creating...', () => requestJson('/api/controller/networks', {
     method: 'POST',
     body: { name },
-  });
+  }));
   input.value = '';
   await fetchController();
   if (payload.network?.nwid) {
     await loadNetwork(payload.network.nwid, { silent: true });
+    setPage('networks');
+    switchTab('settings');
   }
   toast('Network created.');
 }
 
-async function patchSelectedNetwork(body, message) {
+async function patchSelectedNetwork(body, message, form, pendingText = 'Saving...') {
   if (!state.selectedNetworkId) {
     toast('Select a network first.');
     return;
   }
-  state.selectedBundle = await requestJson(`/api/controller/networks/${encodeURIComponent(state.selectedNetworkId)}`, {
+  state.selectedBundle = await withPending(form, pendingText, () => requestJson(`/api/controller/networks/${encodeURIComponent(state.selectedNetworkId)}`, {
     method: 'PATCH',
     body,
-  });
+  }));
   state.networks = state.networks.map((network) => (
     network.nwid === state.selectedNetworkId ? state.selectedBundle.network : network
   ));
@@ -550,7 +714,7 @@ async function submitBasics(event) {
   await patchSelectedNetwork({
     name: elements.networkNameInput.value.trim(),
     private: elements.networkPrivateInput.checked,
-  }, 'Network basics saved.');
+  }, 'Network basics saved.', event.currentTarget);
 }
 
 async function submitAssignModes(event) {
@@ -562,7 +726,7 @@ async function submitAssignModes(event) {
       rfc4193: elements.v6RfcInput.checked,
       zt: elements.v6ZtInput.checked,
     },
-  }, 'Assignment modes saved.');
+  }, 'Assignment modes saved.', event.currentTarget);
 }
 
 async function submitDns(event) {
@@ -572,54 +736,98 @@ async function submitDns(event) {
       domain: elements.dnsDomain.value.trim(),
       servers: elements.dnsServers.value.split('\n').map((item) => item.trim()).filter(Boolean),
     },
-  }, 'DNS saved.');
+  }, 'DNS saved.', event.currentTarget);
 }
 
 async function submitEasySetup(event) {
   event.preventDefault();
-  state.selectedBundle = await requestJson(`/api/controller/networks/${encodeURIComponent(state.selectedNetworkId)}/easy`, {
+  if (!state.selectedNetworkId) {
+    toast('Select a network first.');
+    return;
+  }
+  const cidr = elements.easyCidr.value.trim();
+  const defaults = defaultPoolForCidr(cidr);
+  if (!defaults) {
+    toast('Enter a valid IPv4 CIDR, for example 10.147.17.0/24.');
+    elements.easyCidr.focus();
+    return;
+  }
+  const poolStart = elements.easyPoolStart.value.trim() || defaults.poolStart;
+  const poolEnd = elements.easyPoolEnd.value.trim() || defaults.poolEnd;
+  const poolError = poolRangeError(defaults.cidr, poolStart, poolEnd);
+  if (poolError) {
+    toast(poolError);
+    elements.easyPoolStart.focus();
+    return;
+  }
+  const form = event.currentTarget;
+  state.selectedBundle = await withPending(form, 'Applying...', () => requestJson(`/api/controller/networks/${encodeURIComponent(state.selectedNetworkId)}/easy`, {
     method: 'POST',
     body: {
-      networkCIDR: elements.easyCidr.value.trim(),
-      poolStart: elements.easyPoolStart.value.trim(),
-      poolEnd: elements.easyPoolEnd.value.trim(),
+      networkCIDR: defaults.cidr,
+      poolStart,
+      poolEnd,
     },
-  });
+  }));
+  await loadNetwork(state.selectedNetworkId, { silent: true });
   renderSelectedNetwork();
   toast('Easy setup applied.');
 }
 
 async function submitRoute(event) {
   event.preventDefault();
+  if (!state.selectedNetworkId) {
+    toast('Select a network first.');
+    return;
+  }
   const form = event.currentTarget;
-  state.selectedBundle = await requestJson(`/api/controller/networks/${encodeURIComponent(state.selectedNetworkId)}/routes`, {
+  const target = $('routeTarget').value.trim();
+  const route = parseIpv4RouteCidr(target);
+  if (!route) {
+    toast('Enter a valid target CIDR.');
+    $('routeTarget').focus();
+    return;
+  }
+  state.selectedBundle = await withPending(form, 'Adding...', () => requestJson(`/api/controller/networks/${encodeURIComponent(state.selectedNetworkId)}/routes`, {
     method: 'POST',
     body: {
-      target: $('routeTarget').value.trim(),
+      target: route.normalized,
       via: $('routeVia').value.trim() || null,
     },
-  });
-  if (form && typeof form.reset === 'function') {
-    form.reset();
-  }
-  renderSelectedNetwork();
+  }));
+  form.reset();
+  await loadNetwork(state.selectedNetworkId, { silent: true });
   toast('Route added.');
 }
 
 async function submitPool(event) {
   event.preventDefault();
+  if (!state.selectedNetworkId) {
+    toast('Select a network first.');
+    return;
+  }
   const form = event.currentTarget;
-  state.selectedBundle = await requestJson(`/api/controller/networks/${encodeURIComponent(state.selectedNetworkId)}/ip-pools`, {
+  const ipRangeStart = $('poolStart').value.trim();
+  const ipRangeEnd = $('poolEnd').value.trim();
+  if (parseIpv4(ipRangeStart) === null || parseIpv4(ipRangeEnd) === null) {
+    toast('Enter a valid IPv4 range start and end.');
+    $('poolStart').focus();
+    return;
+  }
+  if (parseIpv4(ipRangeStart) > parseIpv4(ipRangeEnd)) {
+    toast('Range start must be lower than or equal to range end.');
+    $('poolStart').focus();
+    return;
+  }
+  state.selectedBundle = await withPending(form, 'Adding...', () => requestJson(`/api/controller/networks/${encodeURIComponent(state.selectedNetworkId)}/ip-pools`, {
     method: 'POST',
     body: {
-      ipRangeStart: $('poolStart').value.trim(),
-      ipRangeEnd: $('poolEnd').value.trim(),
+      ipRangeStart,
+      ipRangeEnd,
     },
-  });
-  if (form && typeof form.reset === 'function') {
-    form.reset();
-  }
-  renderSelectedNetwork();
+  }));
+  form.reset();
+  await loadNetwork(state.selectedNetworkId, { silent: true });
   toast('Assignment pool added.');
 }
 
@@ -713,13 +921,13 @@ async function handleMemberIpSubmit(event) {
 
 async function removeRoute(target) {
   state.selectedBundle = await requestJson(`/api/controller/networks/${encodeURIComponent(state.selectedNetworkId)}/routes?target=${encodeURIComponent(target)}`, { method: 'DELETE' });
-  renderSelectedNetwork();
+  await loadNetwork(state.selectedNetworkId, { silent: true });
   toast('Route removed.');
 }
 
 async function removePool(start, end) {
   state.selectedBundle = await requestJson(`/api/controller/networks/${encodeURIComponent(state.selectedNetworkId)}/ip-pools?start=${encodeURIComponent(start)}&end=${encodeURIComponent(end)}`, { method: 'DELETE' });
-  renderSelectedNetwork();
+  await loadNetwork(state.selectedNetworkId, { silent: true });
   toast('Assignment pool removed.');
 }
 
@@ -735,6 +943,12 @@ function selectedDeliveryNetworkId() {
     return '';
   }
   return networkId;
+}
+
+function resetDeliveryCommands() {
+  elements.wgetCommand.textContent = 'Generate a link first.';
+  elements.linuxCommand.textContent = 'Generate an installer first.';
+  elements.macosCommand.textContent = 'Generate an installer first.';
 }
 
 async function generatePlanetCommand() {
@@ -784,6 +998,9 @@ async function copyFrom(targetId) {
 
 function setPage(pageName, options = {}) {
   const normalized = pageMeta[pageName] ? pageName : 'overview';
+  if (state.activePage !== normalized && state.selectedBundle?.network) {
+    syncNetworkForms(state.selectedBundle.network);
+  }
   state.activePage = normalized;
   document.querySelectorAll('.page').forEach((page) => {
     page.classList.toggle('active', page.dataset.page === normalized);
@@ -799,6 +1016,9 @@ function setPage(pageName, options = {}) {
 }
 
 function switchTab(tabName) {
+  if (state.activeTab !== tabName && state.selectedBundle?.network) {
+    syncNetworkForms(state.selectedBundle.network);
+  }
   state.activeTab = tabName;
   document.querySelectorAll('.tab').forEach((tab) => {
     tab.classList.toggle('active', tab.dataset.tab === tabName);
@@ -848,6 +1068,25 @@ function bindEvents() {
   $('deleteNetworkButton').addEventListener('click', () => deleteSelectedNetwork().catch((error) => toast(error.message)));
   $('refreshNetworkButton').addEventListener('click', () => loadNetwork(state.selectedNetworkId).catch((error) => toast(error.message)));
 
+  elements.easyCidr.addEventListener('input', () => {
+    const defaults = defaultPoolForCidr(elements.easyCidr.value.trim());
+    if (!defaults) {
+      return;
+    }
+    if (!state.easyPoolTouched) {
+      elements.easyPoolStart.value = defaults.poolStart;
+      elements.easyPoolEnd.value = defaults.poolEnd;
+    }
+    $('routeTarget').placeholder = defaults.cidr;
+    $('poolStart').placeholder = defaults.poolStart;
+    $('poolEnd').placeholder = defaults.poolEnd;
+  });
+  [elements.easyPoolStart, elements.easyPoolEnd].forEach((input) => {
+    input.addEventListener('input', () => {
+      state.easyPoolTouched = true;
+    });
+  });
+
   elements.networkSearch.addEventListener('input', () => {
     state.networkFilter = elements.networkSearch.value;
     renderNetworkList();
@@ -890,6 +1129,9 @@ function bindEvents() {
   $('planetLinkButton').addEventListener('click', () => generatePlanetCommand().catch((error) => toast(error.message)));
   $('linuxLinkButton').addEventListener('click', () => generateLinuxCommand().catch((error) => toast(error.message)));
   $('macosLinkButton').addEventListener('click', () => generateMacosCommand().catch((error) => toast(error.message)));
+  elements.ttl.addEventListener('change', resetDeliveryCommands);
+  elements.deliveryNetwork.addEventListener('change', resetDeliveryCommands);
+  elements.includeNetworkId.addEventListener('change', resetDeliveryCommands);
   document.querySelectorAll('[data-copy-target]').forEach((button) => {
     button.addEventListener('click', () => copyFrom(button.dataset.copyTarget).catch((error) => toast(error.message)));
   });
