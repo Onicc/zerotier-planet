@@ -1,52 +1,82 @@
 const state = {
   status: null,
+  overview: null,
   controller: null,
   networks: [],
   selectedNetworkId: localStorage.getItem('ztp_selected_network') || '',
   selectedBundle: null,
-  adminKey: localStorage.getItem('ztp_admin_key') || '',
+  token: sessionStorage.getItem('ztp_session_token') || '',
+  username: 'admin',
+  activePage: 'overview',
   activeTab: 'members',
+  networkFilter: '',
 };
 
+const $ = (id) => document.getElementById(id);
+
 const elements = {
-  adminKey: document.getElementById('adminKey'),
-  ttl: document.getElementById('ttl'),
-  toast: document.getElementById('toast'),
-  consoleState: document.getElementById('consoleState'),
-  consoleStateDetail: document.getElementById('consoleStateDetail'),
-  planetState: document.getElementById('planetState'),
-  controllerStatus: document.getElementById('controllerStatus'),
-  networkCount: document.getElementById('networkCount'),
-  ztAddress: document.getElementById('ztAddress'),
-  publicUrl: document.getElementById('publicUrl'),
-  ztPort: document.getElementById('ztPort'),
-  filePort: document.getElementById('filePort'),
-  ttlState: document.getElementById('ttlState'),
-  readinessPill: document.getElementById('readinessPill'),
-  networkList: document.getElementById('networkList'),
-  networkListCount: document.getElementById('networkListCount'),
-  networkEmpty: document.getElementById('networkEmpty'),
-  networkDetail: document.getElementById('networkDetail'),
-  selectedNetworkName: document.getElementById('selectedNetworkName'),
-  selectedNetworkId: document.getElementById('selectedNetworkId'),
-  membersTable: document.getElementById('membersTable'),
-  routesList: document.getElementById('routesList'),
-  poolsList: document.getElementById('poolsList'),
-  rawNetworkJson: document.getElementById('rawNetworkJson'),
-  networkNameInput: document.getElementById('networkNameInput'),
-  networkPrivateInput: document.getElementById('networkPrivateInput'),
-  easyCidr: document.getElementById('easyCidr'),
-  easyPoolStart: document.getElementById('easyPoolStart'),
-  easyPoolEnd: document.getElementById('easyPoolEnd'),
-  v4AssignInput: document.getElementById('v4AssignInput'),
-  v6PlaneInput: document.getElementById('v6PlaneInput'),
-  v6RfcInput: document.getElementById('v6RfcInput'),
-  v6ZtInput: document.getElementById('v6ZtInput'),
-  dnsDomain: document.getElementById('dnsDomain'),
-  dnsServers: document.getElementById('dnsServers'),
-  wgetCommand: document.getElementById('wgetCommand'),
-  linuxCommand: document.getElementById('linuxCommand'),
-  macosCommand: document.getElementById('macosCommand'),
+  authShell: $('authShell'),
+  appShell: $('appShell'),
+  loginForm: $('loginForm'),
+  firstPasswordForm: $('firstPasswordForm'),
+  loginUsername: $('loginUsername'),
+  loginPassword: $('loginPassword'),
+  firstCurrentPassword: $('firstCurrentPassword'),
+  firstNewPassword: $('firstNewPassword'),
+  firstConfirmPassword: $('firstConfirmPassword'),
+  toast: $('toast'),
+  signedInUser: $('signedInUser'),
+  sessionState: $('sessionState'),
+  pageKicker: $('pageKicker'),
+  pageTitle: $('pageTitle'),
+  planetState: $('planetState'),
+  controllerStatus: $('controllerStatus'),
+  networkCount: $('networkCount'),
+  ztAddress: $('ztAddress'),
+  publicUrl: $('publicUrl'),
+  ztPort: $('ztPort'),
+  filePort: $('filePort'),
+  ttlState: $('ttlState'),
+  readinessPill: $('readinessPill'),
+  fileCount: $('fileCount'),
+  fileList: $('fileList'),
+  networkList: $('networkList'),
+  networkListCount: $('networkListCount'),
+  networkSearch: $('networkSearch'),
+  networkEmpty: $('networkEmpty'),
+  networkDetail: $('networkDetail'),
+  selectedNetworkName: $('selectedNetworkName'),
+  selectedNetworkId: $('selectedNetworkId'),
+  selectedNetworkPrivacy: $('selectedNetworkPrivacy'),
+  membersTable: $('membersTable'),
+  routesList: $('routesList'),
+  poolsList: $('poolsList'),
+  rawNetworkJson: $('rawNetworkJson'),
+  networkNameInput: $('networkNameInput'),
+  networkPrivateInput: $('networkPrivateInput'),
+  easyCidr: $('easyCidr'),
+  easyPoolStart: $('easyPoolStart'),
+  easyPoolEnd: $('easyPoolEnd'),
+  v4AssignInput: $('v4AssignInput'),
+  v6PlaneInput: $('v6PlaneInput'),
+  v6RfcInput: $('v6RfcInput'),
+  v6ZtInput: $('v6ZtInput'),
+  dnsDomain: $('dnsDomain'),
+  dnsServers: $('dnsServers'),
+  ttl: $('ttl'),
+  deliveryNetwork: $('deliveryNetwork'),
+  includeNetworkId: $('includeNetworkId'),
+  wgetCommand: $('wgetCommand'),
+  linuxCommand: $('linuxCommand'),
+  macosCommand: $('macosCommand'),
+};
+
+const pageMeta = {
+  overview: ['Operations', 'Overview'],
+  networks: ['Controller', 'Networks'],
+  delivery: ['Client rollout', 'Client delivery'],
+  guide: ['Documentation', 'Guide'],
+  settings: ['Security', 'Settings'],
 };
 
 function toast(message) {
@@ -55,22 +85,26 @@ function toast(message) {
   window.clearTimeout(toast.timer);
   toast.timer = window.setTimeout(() => {
     elements.toast.classList.remove('visible');
-  }, 2800);
+  }, 3200);
 }
 
 function commandQuote(value) {
   return `'${String(value).replace(/'/g, `'\\''`)}'`;
 }
 
-function requireKey() {
-  const key = elements.adminKey.value.trim();
-  if (!key) {
-    toast('Paste the server key first.');
-    elements.adminKey.focus();
-    location.hash = '#settings';
-    throw new Error('Missing server key');
+function saveSession(payload) {
+  state.token = payload.token || '';
+  state.username = payload.username || state.username || 'admin';
+  if (state.token) {
+    sessionStorage.setItem('ztp_session_token', state.token);
   }
-  return key;
+  elements.signedInUser.textContent = state.username;
+  elements.sessionState.textContent = payload.mustChangePassword ? 'Password change required' : 'Session active';
+}
+
+function clearSession() {
+  state.token = '';
+  sessionStorage.removeItem('ztp_session_token');
 }
 
 async function requestJson(path, options = {}) {
@@ -81,8 +115,8 @@ async function requestJson(path, options = {}) {
   if (options.body !== undefined) {
     headers['Content-Type'] = 'application/json';
   }
-  if (options.admin !== false) {
-    headers['X-File-Server-Key'] = requireKey();
+  if (options.auth !== false && state.token) {
+    headers.Authorization = `Bearer ${state.token}`;
   }
 
   const response = await fetch(path, {
@@ -93,15 +127,138 @@ async function requestJson(path, options = {}) {
   });
   const payload = await response.json().catch(() => ({}));
   if (!response.ok) {
+    if (response.status === 401) {
+      if (payload.mustChangePassword) {
+        showFirstPassword();
+      } else if (options.auth !== false) {
+        showLogin();
+      }
+    }
     throw new Error(payload.error || `Request failed: ${response.status}`);
   }
   return payload;
 }
 
-async function fetchStatus() {
-  state.status = await requestJson('/api/status', { admin: false });
-  renderStatus();
+async function fetchPublicStatus() {
+  state.status = await requestJson('/api/status', { auth: false });
+  state.username = state.status?.auth?.username || 'admin';
+  elements.signedInUser.textContent = state.username;
   return state.status;
+}
+
+async function login(event) {
+  event.preventDefault();
+  const username = elements.loginUsername.value.trim();
+  const password = elements.loginPassword.value;
+  const payload = await requestJson('/api/auth/login', {
+    method: 'POST',
+    auth: false,
+    body: { username, password },
+  });
+  saveSession(payload);
+  elements.loginPassword.value = '';
+  if (payload.mustChangePassword) {
+    elements.firstCurrentPassword.value = password;
+    showFirstPassword();
+    toast('Set a new password before continuing.');
+    return;
+  }
+  await enterApp();
+}
+
+function validatePasswordPair(password, confirmPassword) {
+  if (password !== confirmPassword) {
+    throw new Error('Passwords do not match.');
+  }
+  if (password.length < 8 || !/[A-Za-z]/.test(password) || !/[0-9]/.test(password)) {
+    throw new Error('Password must be at least 8 characters and include letters and numbers.');
+  }
+}
+
+async function submitFirstPassword(event) {
+  event.preventDefault();
+  const currentPassword = elements.firstCurrentPassword.value;
+  const newPassword = elements.firstNewPassword.value;
+  validatePasswordPair(newPassword, elements.firstConfirmPassword.value);
+  const payload = await requestJson('/api/auth/password', {
+    method: 'POST',
+    body: { currentPassword, newPassword },
+  });
+  saveSession(payload);
+  elements.firstCurrentPassword.value = '';
+  elements.firstNewPassword.value = '';
+  elements.firstConfirmPassword.value = '';
+  toast('Password updated.');
+  await enterApp();
+}
+
+async function submitChangePassword(event) {
+  event.preventDefault();
+  const currentPassword = $('currentPassword').value;
+  const newPassword = $('newPassword').value;
+  validatePasswordPair(newPassword, $('confirmPassword').value);
+  const payload = await requestJson('/api/auth/password', {
+    method: 'POST',
+    body: { currentPassword, newPassword },
+  });
+  saveSession(payload);
+  event.currentTarget.reset();
+  toast('Password changed.');
+}
+
+async function submitResetPassword(event) {
+  event.preventDefault();
+  const newPassword = $('resetNewPassword').value;
+  validatePasswordPair(newPassword, $('resetConfirmPassword').value);
+  if (!window.confirm('Reset the console password and invalidate existing sessions?')) {
+    return;
+  }
+  const payload = await requestJson('/api/auth/reset', {
+    method: 'POST',
+    body: { newPassword },
+  });
+  saveSession(payload);
+  event.currentTarget.reset();
+  toast('Password reset.');
+}
+
+async function logout() {
+  try {
+    await requestJson('/api/auth/logout', { method: 'POST' });
+  } catch (error) {
+    // Session may already be expired.
+  }
+  clearSession();
+  showLogin();
+}
+
+function showLogin() {
+  elements.authShell.hidden = false;
+  elements.appShell.hidden = true;
+  elements.loginForm.classList.add('active');
+  elements.firstPasswordForm.classList.remove('active');
+  elements.loginUsername.value = state.username || 'admin';
+  window.setTimeout(() => elements.loginPassword.focus(), 0);
+}
+
+function showFirstPassword() {
+  elements.authShell.hidden = false;
+  elements.appShell.hidden = true;
+  elements.loginForm.classList.remove('active');
+  elements.firstPasswordForm.classList.add('active');
+  window.setTimeout(() => elements.firstNewPassword.focus(), 0);
+}
+
+async function enterApp() {
+  elements.authShell.hidden = true;
+  elements.appShell.hidden = false;
+  setPage((location.hash || '#overview').replace('#', '') || 'overview', { push: false });
+  await refreshAll();
+}
+
+async function fetchOverview() {
+  state.overview = await requestJson('/api/overview');
+  renderOverview();
 }
 
 async function fetchController() {
@@ -120,69 +277,99 @@ async function fetchController() {
 }
 
 async function refreshAll() {
-  await fetchStatus();
-  if (elements.adminKey.value.trim()) {
-    await fetchController();
-  } else {
-    renderLocked();
-  }
+  await fetchOverview();
+  await fetchController();
 }
 
-function renderStatus() {
-  const status = state.status || {};
-  elements.planetState.textContent = status.hasPlanet ? 'Ready' : 'Missing';
-  elements.planetState.className = status.hasPlanet ? 'ok' : 'danger-text';
-  elements.publicUrl.textContent = status.publicUrl || '--';
-  elements.ztPort.textContent = status.zeroTierPort || '--';
-  elements.filePort.textContent = status.fileServerPort || '--';
-  elements.ttlState.textContent = `${Math.round((status.linkTtlSeconds || 600) / 60)} min`;
-  elements.readinessPill.textContent = status.hasPlanet ? 'Ready' : 'Needs planet';
-  elements.readinessPill.className = status.hasPlanet ? 'pill good' : 'pill warn';
-}
-
-function renderLocked() {
-  elements.consoleState.textContent = 'Locked';
-  elements.consoleStateDetail.textContent = 'Paste the server key to manage networks.';
-  elements.controllerStatus.textContent = 'Locked';
-  elements.networkCount.textContent = '--';
-  elements.ztAddress.textContent = '--';
-  elements.networkList.innerHTML = '<div class="empty-inline">Unlock the console to load networks.</div>';
+function renderOverview() {
+  const overview = state.overview || {};
+  const files = overview.files || [];
+  elements.planetState.textContent = overview.hasPlanet ? 'Ready' : 'Missing';
+  elements.planetState.className = overview.hasPlanet ? 'ok' : 'danger-text';
+  elements.publicUrl.textContent = overview.publicUrl || '--';
+  elements.ztPort.textContent = overview.zeroTierPort || '--';
+  elements.filePort.textContent = overview.fileServerPort || '--';
+  elements.ttlState.textContent = `${Math.round((overview.linkTtlSeconds || 600) / 60)} min`;
+  elements.readinessPill.textContent = overview.hasPlanet ? 'Ready' : 'Needs planet';
+  elements.readinessPill.className = overview.hasPlanet ? 'pill good' : 'pill warn';
+  elements.fileCount.textContent = String(files.length);
+  elements.fileList.innerHTML = files.length ? files.map((file) => `
+    <div class="file-row">
+      <span><strong>${escapeHtml(file.name)}</strong><small>${escapeHtml(file.type)} file</small></span>
+      <span>${formatBytes(file.size)}</span>
+    </div>
+  `).join('') : '<div class="empty-inline">No downloadable files are available yet.</div>';
 }
 
 function renderController() {
   const controllerStatus = state.controller?.status || {};
-  elements.consoleState.textContent = 'Unlocked';
-  elements.consoleStateDetail.textContent = `Controller ${controllerStatus.online ? 'online' : 'available'}`;
   elements.controllerStatus.textContent = controllerStatus.online ? 'Online' : 'Available';
   elements.controllerStatus.className = controllerStatus.online ? 'ok' : '';
   elements.networkCount.textContent = String(state.networks.length);
   elements.ztAddress.textContent = controllerStatus.address || '--';
-  elements.networkListCount.textContent = String(state.networks.length);
+  elements.networkListCount.textContent = String(filteredNetworks().length);
   renderNetworkList();
+  renderDeliveryNetworks();
+}
+
+function filteredNetworks() {
+  const query = state.networkFilter.trim().toLowerCase();
+  if (!query) {
+    return state.networks;
+  }
+  return state.networks.filter((network) => (
+    String(network.name || '').toLowerCase().includes(query)
+    || String(network.nwid || '').toLowerCase().includes(query)
+  ));
 }
 
 function renderNetworkList() {
-  if (!state.networks.length) {
-    elements.networkList.innerHTML = '<div class="empty-inline">No networks yet.</div>';
+  const networks = filteredNetworks();
+  elements.networkListCount.textContent = String(networks.length);
+  if (!networks.length) {
+    elements.networkList.innerHTML = '<div class="empty-inline">No matching networks.</div>';
     return;
   }
 
-  elements.networkList.innerHTML = state.networks.map((network) => `
-    <button class="list-item ${network.nwid === state.selectedNetworkId ? 'active' : ''}" data-network-id="${escapeHtml(network.nwid)}" type="button">
-      <span>
-        <strong>${escapeHtml(network.name || 'Unnamed network')}</strong>
-        <small>${escapeHtml(network.nwid)}</small>
-      </span>
-      <span class="pill ${network.private ? 'good' : 'warn'}">${network.private ? 'Private' : 'Public'}</span>
-    </button>
-  `).join('');
+  elements.networkList.innerHTML = networks.map((network) => {
+    const memberCount = network.authorizedMemberCount ?? network.memberCount ?? 0;
+    return `
+      <button class="list-item ${network.nwid === state.selectedNetworkId ? 'active' : ''}" data-network-id="${escapeHtml(network.nwid)}" type="button">
+        <span>
+          <strong>${escapeHtml(network.name || 'Unnamed network')}</strong>
+          <small>${escapeHtml(network.nwid)}</small>
+        </span>
+        <span class="network-meta">
+          <span class="pill ${network.private ? 'good' : 'warn'}">${network.private ? 'Private' : 'Public'}</span>
+          <small>${escapeHtml(memberCount)} members</small>
+        </span>
+      </button>
+    `;
+  }).join('');
+}
+
+function renderDeliveryNetworks() {
+  if (!state.networks.length) {
+    elements.deliveryNetwork.innerHTML = '<option value="">No networks</option>';
+    return;
+  }
+  elements.deliveryNetwork.innerHTML = state.networks.map((network) => (
+    `<option value="${escapeAttr(network.nwid)}">${escapeHtml(network.name || network.nwid)} (${escapeHtml(network.nwid)})</option>`
+  )).join('');
+  if (state.selectedNetworkId) {
+    elements.deliveryNetwork.value = state.selectedNetworkId;
+  }
 }
 
 async function loadNetwork(nwid, options = {}) {
+  if (!nwid) {
+    return;
+  }
   state.selectedNetworkId = nwid;
   localStorage.setItem('ztp_selected_network', nwid);
   state.selectedBundle = await requestJson(`/api/controller/networks/${encodeURIComponent(nwid)}`);
   renderNetworkList();
+  renderDeliveryNetworks();
   renderSelectedNetwork();
   if (!options.silent) {
     toast('Network loaded.');
@@ -202,6 +389,8 @@ function renderSelectedNetwork() {
   const network = bundle.network;
   elements.selectedNetworkName.textContent = network.name || 'Unnamed network';
   elements.selectedNetworkId.textContent = network.nwid || state.selectedNetworkId;
+  elements.selectedNetworkPrivacy.textContent = network.private ? 'Private' : 'Public';
+  elements.selectedNetworkPrivacy.className = network.private ? 'pill good' : 'pill warn';
   elements.networkNameInput.value = network.name || '';
   elements.networkPrivateInput.checked = Boolean(network.private);
   elements.v4AssignInput.checked = Boolean(network.v4AssignMode?.zt);
@@ -221,9 +410,7 @@ function renderMembers(members) {
   if (!members.length) {
     elements.membersTable.innerHTML = `
       <tr>
-        <td colspan="7">
-          <div class="empty-inline">No members have joined this network yet.</div>
-        </td>
+        <td colspan="7"><div class="empty-inline">No members have joined this network yet.</div></td>
       </tr>
     `;
     return;
@@ -234,26 +421,15 @@ function renderMembers(members) {
     const ips = Array.isArray(member.ipAssignments) ? member.ipAssignments : [];
     return `
       <tr data-member-id="${escapeHtml(id)}">
-        <td>
-          <input class="table-input member-name-input" value="${escapeAttr(member.name || '')}" placeholder="Friendly name" aria-label="Member name">
-        </td>
-        <td>
-          <span class="mono">${escapeHtml(id)}</span>
-        </td>
+        <td><input class="table-input member-name-input" value="${escapeAttr(member.name || '')}" placeholder="Friendly name" aria-label="Member name"></td>
+        <td><span class="mono">${escapeHtml(id)}</span></td>
         <td>${renderPeerState(member)}</td>
-        <td>
-          <input class="member-authorized-input" type="checkbox" ${member.authorized ? 'checked' : ''} aria-label="Authorized">
-        </td>
-        <td>
-          <input class="member-bridge-input" type="checkbox" ${member.activeBridge ? 'checked' : ''} aria-label="Active bridge">
-        </td>
+        <td><input class="member-authorized-input" type="checkbox" ${member.authorized ? 'checked' : ''} aria-label="Authorized"></td>
+        <td><input class="member-bridge-input" type="checkbox" ${member.activeBridge ? 'checked' : ''} aria-label="Active bridge"></td>
         <td>
           <div class="ip-stack">
             ${ips.map((ip, index) => `
-              <span class="ip-chip">
-                ${escapeHtml(ip)}
-                <button data-action="delete-ip" data-index="${index}" type="button" aria-label="Delete IP assignment">x</button>
-              </span>
+              <span class="ip-chip">${escapeHtml(ip)}<button data-action="delete-ip" data-index="${index}" type="button" aria-label="Delete IP assignment">x</button></span>
             `).join('') || '<span class="muted">None</span>'}
             <form class="mini-form member-ip-form">
               <input type="text" placeholder="Add IP">
@@ -261,9 +437,7 @@ function renderMembers(members) {
             </form>
           </div>
         </td>
-        <td>
-          <button class="button small danger" data-action="delete-member" type="button">Delete</button>
-        </td>
+        <td><button class="button small danger" data-action="delete-member" type="button">Delete</button></td>
       </tr>
     `;
   }).join('');
@@ -287,40 +461,26 @@ function renderPeerState(member) {
 }
 
 function renderRoutes(routes) {
-  if (!routes.length) {
-    elements.routesList.innerHTML = '<div class="empty-inline">No routes configured.</div>';
-    return;
-  }
-  elements.routesList.innerHTML = routes.map((route) => `
+  elements.routesList.innerHTML = routes.length ? routes.map((route) => `
     <div class="config-row">
-      <span>
-        <strong>${escapeHtml(route.target)}</strong>
-        <small>${route.via ? `via ${escapeHtml(route.via)}` : 'local ZeroTier route'}</small>
-      </span>
+      <span><strong>${escapeHtml(route.target)}</strong><small>${route.via ? `via ${escapeHtml(route.via)}` : 'local ZeroTier route'}</small></span>
       <button class="button small" data-route-target="${escapeAttr(route.target)}" type="button">Remove</button>
     </div>
-  `).join('');
+  `).join('') : '<div class="empty-inline">No routes configured.</div>';
 }
 
 function renderPools(pools) {
-  if (!pools.length) {
-    elements.poolsList.innerHTML = '<div class="empty-inline">No assignment pools configured.</div>';
-    return;
-  }
-  elements.poolsList.innerHTML = pools.map((pool) => `
+  elements.poolsList.innerHTML = pools.length ? pools.map((pool) => `
     <div class="config-row">
-      <span>
-        <strong>${escapeHtml(pool.ipRangeStart)} - ${escapeHtml(pool.ipRangeEnd)}</strong>
-        <small>managed assignment range</small>
-      </span>
+      <span><strong>${escapeHtml(pool.ipRangeStart)} - ${escapeHtml(pool.ipRangeEnd)}</strong><small>managed assignment range</small></span>
       <button class="button small" data-pool-start="${escapeAttr(pool.ipRangeStart)}" data-pool-end="${escapeAttr(pool.ipRangeEnd)}" type="button">Remove</button>
     </div>
-  `).join('');
+  `).join('') : '<div class="empty-inline">No assignment pools configured.</div>';
 }
 
 async function createNetwork(event) {
   event.preventDefault();
-  const input = document.getElementById('newNetworkName');
+  const input = $('newNetworkName');
   const name = input.value.trim();
   if (!name) {
     toast('Enter a network name.');
@@ -388,10 +548,6 @@ async function submitDns(event) {
 
 async function submitEasySetup(event) {
   event.preventDefault();
-  if (!state.selectedNetworkId) {
-    toast('Select a network first.');
-    return;
-  }
   state.selectedBundle = await requestJson(`/api/controller/networks/${encodeURIComponent(state.selectedNetworkId)}/easy`, {
     method: 'POST',
     body: {
@@ -409,8 +565,8 @@ async function submitRoute(event) {
   state.selectedBundle = await requestJson(`/api/controller/networks/${encodeURIComponent(state.selectedNetworkId)}/routes`, {
     method: 'POST',
     body: {
-      target: document.getElementById('routeTarget').value.trim(),
-      via: document.getElementById('routeVia').value.trim() || null,
+      target: $('routeTarget').value.trim(),
+      via: $('routeVia').value.trim() || null,
     },
   });
   event.currentTarget.reset();
@@ -423,8 +579,8 @@ async function submitPool(event) {
   state.selectedBundle = await requestJson(`/api/controller/networks/${encodeURIComponent(state.selectedNetworkId)}/ip-pools`, {
     method: 'POST',
     body: {
-      ipRangeStart: document.getElementById('poolStart').value.trim(),
-      ipRangeEnd: document.getElementById('poolEnd').value.trim(),
+      ipRangeStart: $('poolStart').value.trim(),
+      ipRangeEnd: $('poolEnd').value.trim(),
     },
   });
   event.currentTarget.reset();
@@ -440,9 +596,7 @@ async function deleteSelectedNetwork() {
   if (!window.confirm(`Delete network ${networkName}?`)) {
     return;
   }
-  await requestJson(`/api/controller/networks/${encodeURIComponent(state.selectedNetworkId)}`, {
-    method: 'DELETE',
-  });
+  await requestJson(`/api/controller/networks/${encodeURIComponent(state.selectedNetworkId)}`, { method: 'DELETE' });
   state.selectedNetworkId = '';
   localStorage.removeItem('ztp_selected_network');
   await fetchController();
@@ -523,17 +677,13 @@ async function handleMemberIpSubmit(event) {
 }
 
 async function removeRoute(target) {
-  state.selectedBundle = await requestJson(`/api/controller/networks/${encodeURIComponent(state.selectedNetworkId)}/routes?target=${encodeURIComponent(target)}`, {
-    method: 'DELETE',
-  });
+  state.selectedBundle = await requestJson(`/api/controller/networks/${encodeURIComponent(state.selectedNetworkId)}/routes?target=${encodeURIComponent(target)}`, { method: 'DELETE' });
   renderSelectedNetwork();
   toast('Route removed.');
 }
 
 async function removePool(start, end) {
-  state.selectedBundle = await requestJson(`/api/controller/networks/${encodeURIComponent(state.selectedNetworkId)}/ip-pools?start=${encodeURIComponent(start)}&end=${encodeURIComponent(end)}`, {
-    method: 'DELETE',
-  });
+  state.selectedBundle = await requestJson(`/api/controller/networks/${encodeURIComponent(state.selectedNetworkId)}/ip-pools?start=${encodeURIComponent(start)}&end=${encodeURIComponent(end)}`, { method: 'DELETE' });
   renderSelectedNetwork();
   toast('Assignment pool removed.');
 }
@@ -541,8 +691,15 @@ async function removePool(start, end) {
 async function createLink(type, file) {
   const ttl = elements.ttl.value || '600';
   const params = new URLSearchParams({ type, file, ttl });
-  const payload = await requestJson(`/api/link?${params.toString()}`);
-  return payload.url;
+  return (await requestJson(`/api/link?${params.toString()}`)).url;
+}
+
+function selectedDeliveryNetworkId() {
+  const networkId = elements.deliveryNetwork.value;
+  if (!elements.includeNetworkId.checked || !networkId) {
+    return '';
+  }
+  return networkId;
 }
 
 async function generatePlanetCommand() {
@@ -553,24 +710,27 @@ async function generatePlanetCommand() {
 
 async function generateLinuxCommand() {
   const link = await createLink('install', 'linux.sh');
-  elements.linuxCommand.textContent = `curl -fsSL ${commandQuote(link)} | sudo bash`;
+  const networkId = selectedDeliveryNetworkId();
+  const runner = networkId ? `sudo env NETWORK_ID=${networkId} bash` : 'sudo bash';
+  elements.linuxCommand.textContent = `curl -fsSL ${commandQuote(link)} | ${runner}`;
   toast('Linux installer command generated.');
 }
 
 async function generateMacosCommand() {
   const link = await createLink('install', 'macos.sh');
-  elements.macosCommand.textContent = `curl -fsSL ${commandQuote(link)} | bash`;
+  const networkId = selectedDeliveryNetworkId();
+  const runner = networkId ? `NETWORK_ID=${networkId} bash` : 'bash';
+  elements.macosCommand.textContent = `curl -fsSL ${commandQuote(link)} | ${runner}`;
   toast('macOS installer command generated.');
 }
 
 async function copyFrom(targetId) {
-  const target = document.getElementById(targetId);
+  const target = $(targetId);
   const text = target.textContent.trim();
   if (!text || text.includes('Generate')) {
     toast('Generate a command first.');
     return;
   }
-
   if (navigator.clipboard && window.isSecureContext) {
     await navigator.clipboard.writeText(text);
   } else {
@@ -587,22 +747,20 @@ async function copyFrom(targetId) {
   toast('Copied.');
 }
 
-function saveKey() {
-  state.adminKey = elements.adminKey.value.trim();
-  if (state.adminKey) {
-    localStorage.setItem('ztp_admin_key', state.adminKey);
-    toast('Server key saved locally.');
-    refreshAll().catch((error) => toast(error.message));
-  } else {
-    localStorage.removeItem('ztp_admin_key');
-    renderLocked();
-    toast('Local key cleared.');
+function setPage(pageName, options = {}) {
+  const normalized = pageMeta[pageName] ? pageName : 'overview';
+  state.activePage = normalized;
+  document.querySelectorAll('.page').forEach((page) => {
+    page.classList.toggle('active', page.dataset.page === normalized);
+  });
+  document.querySelectorAll('[data-nav]').forEach((link) => {
+    link.classList.toggle('active', link.dataset.nav === normalized);
+  });
+  elements.pageKicker.textContent = pageMeta[normalized][0];
+  elements.pageTitle.textContent = pageMeta[normalized][1];
+  if (options.push !== false && location.hash !== `#${normalized}`) {
+    location.hash = normalized;
   }
-}
-
-function clearKey() {
-  elements.adminKey.value = '';
-  saveKey();
 }
 
 function switchTab(tabName) {
@@ -612,13 +770,6 @@ function switchTab(tabName) {
   });
   document.querySelectorAll('.tab-panel').forEach((panel) => {
     panel.classList.toggle('active', panel.dataset.panel === tabName);
-  });
-}
-
-function updateActiveNav() {
-  const hash = (location.hash || '#overview').replace('#', '');
-  document.querySelectorAll('[data-nav]').forEach((link) => {
-    link.classList.toggle('active', link.dataset.nav === hash);
   });
 }
 
@@ -635,24 +786,38 @@ function escapeAttr(value) {
   return escapeHtml(value).replace(/`/g, '&#096;');
 }
 
+function formatBytes(value) {
+  const bytes = Number(value || 0);
+  if (bytes < 1024) {
+    return `${bytes} B`;
+  }
+  if (bytes < 1024 * 1024) {
+    return `${(bytes / 1024).toFixed(1)} KB`;
+  }
+  return `${(bytes / 1024 / 1024).toFixed(1)} MB`;
+}
+
 function bindEvents() {
-  elements.adminKey.value = state.adminKey;
-  updateActiveNav();
+  elements.loginForm.addEventListener('submit', (event) => login(event).catch((error) => toast(error.message)));
+  elements.firstPasswordForm.addEventListener('submit', (event) => submitFirstPassword(event).catch((error) => toast(error.message)));
+  $('changePasswordForm').addEventListener('submit', (event) => submitChangePassword(event).catch((error) => toast(error.message)));
+  $('resetPasswordForm').addEventListener('submit', (event) => submitResetPassword(event).catch((error) => toast(error.message)));
+  $('logoutButton').addEventListener('click', () => logout());
+  $('refreshAllButton').addEventListener('click', () => refreshAll().catch((error) => toast(error.message)));
+  $('createNetworkForm').addEventListener('submit', (event) => createNetwork(event).catch((error) => toast(error.message)));
+  $('networkBasicsForm').addEventListener('submit', (event) => submitBasics(event).catch((error) => toast(error.message)));
+  $('assignModeForm').addEventListener('submit', (event) => submitAssignModes(event).catch((error) => toast(error.message)));
+  $('dnsForm').addEventListener('submit', (event) => submitDns(event).catch((error) => toast(error.message)));
+  $('easySetupForm').addEventListener('submit', (event) => submitEasySetup(event).catch((error) => toast(error.message)));
+  $('routeForm').addEventListener('submit', (event) => submitRoute(event).catch((error) => toast(error.message)));
+  $('poolForm').addEventListener('submit', (event) => submitPool(event).catch((error) => toast(error.message)));
+  $('deleteNetworkButton').addEventListener('click', () => deleteSelectedNetwork().catch((error) => toast(error.message)));
+  $('refreshNetworkButton').addEventListener('click', () => loadNetwork(state.selectedNetworkId).catch((error) => toast(error.message)));
 
-  window.addEventListener('hashchange', updateActiveNav);
-  document.getElementById('refreshAllButton').addEventListener('click', () => refreshAll().catch((error) => toast(error.message)));
-  document.getElementById('saveKeyButton').addEventListener('click', saveKey);
-  document.getElementById('clearKeyButton').addEventListener('click', clearKey);
-  document.getElementById('createNetworkForm').addEventListener('submit', (event) => createNetwork(event).catch((error) => toast(error.message)));
-  document.getElementById('networkBasicsForm').addEventListener('submit', (event) => submitBasics(event).catch((error) => toast(error.message)));
-  document.getElementById('assignModeForm').addEventListener('submit', (event) => submitAssignModes(event).catch((error) => toast(error.message)));
-  document.getElementById('dnsForm').addEventListener('submit', (event) => submitDns(event).catch((error) => toast(error.message)));
-  document.getElementById('easySetupForm').addEventListener('submit', (event) => submitEasySetup(event).catch((error) => toast(error.message)));
-  document.getElementById('routeForm').addEventListener('submit', (event) => submitRoute(event).catch((error) => toast(error.message)));
-  document.getElementById('poolForm').addEventListener('submit', (event) => submitPool(event).catch((error) => toast(error.message)));
-  document.getElementById('deleteNetworkButton').addEventListener('click', () => deleteSelectedNetwork().catch((error) => toast(error.message)));
-  document.getElementById('refreshNetworkButton').addEventListener('click', () => loadNetwork(state.selectedNetworkId).catch((error) => toast(error.message)));
-
+  elements.networkSearch.addEventListener('input', () => {
+    state.networkFilter = elements.networkSearch.value;
+    renderNetworkList();
+  });
   elements.networkList.addEventListener('click', (event) => {
     const item = event.target.closest('[data-network-id]');
     if (item) {
@@ -680,23 +845,42 @@ function bindEvents() {
   document.querySelectorAll('.tab').forEach((tab) => {
     tab.addEventListener('click', () => switchTab(tab.dataset.tab));
   });
+  document.querySelectorAll('[data-nav]').forEach((link) => {
+    link.addEventListener('click', (event) => {
+      event.preventDefault();
+      setPage(link.dataset.nav);
+    });
+  });
+  window.addEventListener('hashchange', () => setPage((location.hash || '#overview').replace('#', ''), { push: false }));
 
-  document.getElementById('planetLinkButton').addEventListener('click', () => generatePlanetCommand().catch((error) => toast(error.message)));
-  document.getElementById('linuxLinkButton').addEventListener('click', () => generateLinuxCommand().catch((error) => toast(error.message)));
-  document.getElementById('macosLinkButton').addEventListener('click', () => generateMacosCommand().catch((error) => toast(error.message)));
-
+  $('planetLinkButton').addEventListener('click', () => generatePlanetCommand().catch((error) => toast(error.message)));
+  $('linuxLinkButton').addEventListener('click', () => generateLinuxCommand().catch((error) => toast(error.message)));
+  $('macosLinkButton').addEventListener('click', () => generateMacosCommand().catch((error) => toast(error.message)));
   document.querySelectorAll('[data-copy-target]').forEach((button) => {
     button.addEventListener('click', () => copyFrom(button.dataset.copyTarget).catch((error) => toast(error.message)));
   });
 }
 
 bindEvents();
-fetchStatus()
-  .then(() => {
-    if (state.adminKey) {
-      return fetchController();
+fetchPublicStatus()
+  .then(async (status) => {
+    if (!state.token) {
+      showLogin();
+      return;
     }
-    renderLocked();
-    return null;
+    const auth = await requestJson('/api/auth/status');
+    if (!auth.authenticated) {
+      showLogin();
+      return;
+    }
+    saveSession({ token: state.token, username: auth.username, mustChangePassword: auth.mustChangePassword });
+    if (auth.mustChangePassword) {
+      showFirstPassword();
+      return;
+    }
+    await enterApp();
   })
-  .catch((error) => toast(error.message));
+  .catch((error) => {
+    toast(error.message);
+    showLogin();
+  });

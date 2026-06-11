@@ -49,17 +49,16 @@ After deployment, open:
 http://SERVER_IP:3000
 ```
 
-## Unlock The Console
+## Sign In
 
-The unified console uses the file server key to authorize management actions. After deployment, run this on the server:
+The unified console uses username and password authentication. Initial credentials after a fresh deployment are:
 
-```bash
-docker exec myztplanet cat /app/config/file_server.key
+```text
+Username: admin
+Password: password
 ```
 
-If you need to read the mounted directory directly, run `sudo cat ./data/zerotier/config/file_server.key`.
-
-Open the console, go to `Access`, paste the key, and save it. The key is stored only in this browser's `localStorage`.
+The first sign-in requires a password reset. You can later change or reset the password in `Settings`.
 
 ## Create A Network
 
@@ -234,7 +233,8 @@ docker restart myztplanet
 
 ## Security Recommendations
 
-- Do not share the management key. Prefer `docker exec myztplanet cat /app/config/file_server.key` when reading it.
+- Complete the forced password reset after the first sign-in
+- Do not use weak passwords or reuse passwords from other systems
 - Expose the unified console only to trusted users
 - Restrict `3000/tcp` with a firewall when possible
 - Back up `./data/zerotier` regularly
@@ -262,7 +262,7 @@ Check:
 Check:
 
 - The `planet` file has been generated
-- `Server key` contains the output of `docker exec myztplanet cat /app/config/file_server.key`
+- Your signed-in session has not expired
 - You are visiting the correct console port
 
 ### Does it support Windows scripts?

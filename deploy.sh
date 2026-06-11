@@ -204,7 +204,7 @@ install() {
         ${DOCKER_IMAGE}
 
     if ! wait_for_container_file "/app/config/file_server.key" 90; then
-        echo "容器已启动，但管理密钥尚未生成，请执行 docker logs ${CONTAINER_NAME} 查看日志"
+        echo "容器已启动，但内部签名密钥尚未生成，请执行 docker logs ${CONTAINER_NAME} 查看日志"
         exit 1
     fi
     if ! wait_for_container_file "/app/dist/planet" 90; then
@@ -217,8 +217,9 @@ install() {
     echo "统一控制台： http://${ipv4}:${FILE_PORT}"
     echo "---------------------------"
     echo "moon配置和planet配置在 ${DIST_PATH} 目录下"
-    echo "文件服务管理密钥读取命令： docker exec ${CONTAINER_NAME} cat /app/config/file_server.key"
-    echo "请使用文件服务管理密钥解锁统一控制台"
+    echo "初始账号：admin"
+    echo "初始密码：password"
+    echo "首次登录会要求重置密码"
     echo "可在统一控制台管理网络、授权成员、生成临时下载链接和Linux/macOS客户端安装命令"
     echo "---------------------------"
     echo "请放行以下端口：${ZT_PORT}/tcp,${ZT_PORT}/udp，${FILE_PORT}/tcp"
@@ -316,8 +317,9 @@ info() {
     echo "统一控制台： http://${ipv4}:${FILE_PORT}"
     echo "---------------------------"
     print_message "moon配置和planet配置在 ${DIST_PATH} 目录下" "32"
-    print_message "文件服务管理密钥： docker exec ${CONTAINER_NAME} cat /app/config/file_server.key" "32"
-    print_message "请使用文件服务管理密钥解锁统一控制台" "32"
+    print_message "登录账号：admin" "32"
+    print_message "新部署初始密码为 password；首次登录会要求重置密码" "32"
+    print_message "如果已经完成首次登录，请使用你设置的新密码；登录后可在 Settings 中再次重置" "32"
     print_message "可在统一控制台管理网络、授权成员、生成临时planet下载链接和客户端安装命令" "32"
 }
 

@@ -11,11 +11,15 @@ const distPath = path.join(appPath, 'dist');
 const portalPath = path.join(appPath, 'portal');
 const assetsPath = path.join(portalPath, 'assets');
 const secretKeyPath = path.join(configPath, 'file_server.key');
+const adminAuthPath = path.join(configPath, 'admin_auth.json');
 const memberNamesPath = path.join(configPath, 'member_names.json');
 const ztTokenPath = path.join(ztHome, 'authtoken.secret');
 const publicUrl = (process.env.PUBLIC_URL || '').replace(/\/+$/, '');
 const defaultTtl = Number(process.env.LINK_TTL_SECONDS || 600);
 const maxTtl = Number(process.env.LINK_MAX_TTL_SECONDS || 3600);
+const defaultAdminUsername = (process.env.ADMIN_USERNAME || 'admin').trim();
+const defaultAdminPassword = (process.env.ADMIN_PASSWORD || 'password').trim();
+const sessionTtlMs = Number(process.env.ADMIN_SESSION_TTL_SECONDS || 12 * 60 * 60) * 1000;
 
 function ensureSecretKey() {
   fs.mkdirSync(configPath, { recursive: true });
@@ -98,6 +102,157 @@ function readJsonFile(filePath, fallback) {
 function writeJsonFile(filePath, data) {
   fs.mkdirSync(path.dirname(filePath), { recursive: true });
   fs.writeFileSync(filePath, `${JSON.stringify(data, null, 2)}\n`, { mode: 0o600 });
+}
+
+function hashPassword(password, salt, iterations = 140000) {
+  return crypto.pbkdf2Sync(String(password), salt, iterations, 32, 'sha256').toString('hex');
+}
+
+function timingEqual(left, right, encoding = 'hex') {
+  const leftBuffer = Buffer.from(String(left || ''), encoding);
+  const rightBuffer = Buffer.from(String(right || ''), encoding);
+  return leftBuffer.length === rightBuffer.length && crypto.timingSafeEqual(leftBuffer, rightBuffer);
+}
+
+function createAuthStore(username = defaultAdminUsername || 'admin', password = defaultAdminPassword || 'password') {
+  const salt = crypto.randomBytes(16).toString('hex');
+  const iterations = 140000;
+  return {
+    version: 1,
+    username,
+    passwordSalt: salt,
+    passwordHash: hashPassword(password, salt, iterations),
+    passwordIterations: iterations,
+    mustChangePassword: true,
+    sessions: {},
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+  };
+}
+
+function loadAuthStore() {
+  fs.mkdirSync(configPath, { recursive: true });
+  const saved = readJsonFile(adminAuthPath, null);
+  if (saved && saved.username && saved.passwordHash && saved.passwordSalt) {
+    saved.sessions = saved.sessions && typeof saved.sessions === 'object' ? saved.sessions : {};
+    saved.passwordIterations = Number(saved.passwordIterations || 140000);
+    saved.mustChangePassword = Boolean(saved.mustChangePassword);
+    return saved;
+  }
+
+  const store = createAuthStore();
+  writeJsonFile(adminAuthPath, store);
+  return store;
+}
+
+let authStore = loadAuthStore();
+
+function saveAuthStore() {
+  authStore.updatedAt = new Date().toISOString();
+  writeJsonFile(adminAuthPath, authStore);
+}
+
+function verifyAdminPassword(password) {
+  const candidate = hashPassword(password, authStore.passwordSalt, authStore.passwordIterations);
+  return timingEqual(candidate, authStore.passwordHash);
+}
+
+function passwordPolicyError(password) {
+  const value = String(password || '');
+  if (value.length < 8) {
+    return 'Password must be at least 8 characters.';
+  }
+  if (!/[A-Za-z]/.test(value) || !/[0-9]/.test(value)) {
+    return 'Password must include at least one letter and one number.';
+  }
+  if (value === defaultAdminPassword) {
+    return 'Choose a password different from the initial password.';
+  }
+  return '';
+}
+
+function purgeExpiredSessions() {
+  const now = Date.now();
+  let changed = false;
+  for (const [token, session] of Object.entries(authStore.sessions || {})) {
+    if (!session || Number(session.expiresAt || 0) <= now) {
+      delete authStore.sessions[token];
+      changed = true;
+    }
+  }
+  if (changed) {
+    saveAuthStore();
+  }
+}
+
+function createSession() {
+  purgeExpiredSessions();
+  const token = crypto.randomBytes(32).toString('hex');
+  const now = Date.now();
+  authStore.sessions[token] = {
+    username: authStore.username,
+    createdAt: now,
+    expiresAt: now + sessionTtlMs,
+    passwordChangeRequired: Boolean(authStore.mustChangePassword),
+  };
+  saveAuthStore();
+  return token;
+}
+
+function readSessionToken(req, parsedUrl) {
+  const authHeader = String(req.headers.authorization || '');
+  if (authHeader.toLowerCase().startsWith('bearer ')) {
+    return authHeader.slice(7).trim();
+  }
+  return String(req.headers['x-session-token'] || parsedUrl.query.session || '').trim();
+}
+
+function getSession(req, parsedUrl) {
+  purgeExpiredSessions();
+  const token = readSessionToken(req, parsedUrl);
+  if (!token || !authStore.sessions[token]) {
+    return null;
+  }
+  const session = authStore.sessions[token];
+  if (session.username !== authStore.username) {
+    delete authStore.sessions[token];
+    saveAuthStore();
+    return null;
+  }
+  return { token, session };
+}
+
+function authorizeAdmin(req, parsedUrl, options = {}) {
+  const auth = getSession(req, parsedUrl);
+  if (!auth) {
+    return null;
+  }
+  if (authStore.mustChangePassword && !options.allowPasswordChange) {
+    return null;
+  }
+  return auth;
+}
+
+function authState(req, parsedUrl) {
+  const auth = getSession(req, parsedUrl);
+  return {
+    username: authStore.username,
+    authenticated: Boolean(auth),
+    mustChangePassword: Boolean(authStore.mustChangePassword),
+    passwordChangeRequired: Boolean(auth && authStore.mustChangePassword),
+    sessionTtlSeconds: Math.floor(sessionTtlMs / 1000),
+  };
+}
+
+function setAdminPassword(password, forceChange = false) {
+  const salt = crypto.randomBytes(16).toString('hex');
+  const iterations = 140000;
+  authStore.passwordSalt = salt;
+  authStore.passwordHash = hashPassword(password, salt, iterations);
+  authStore.passwordIterations = iterations;
+  authStore.mustChangePassword = Boolean(forceChange);
+  authStore.sessions = {};
+  saveAuthStore();
 }
 
 function loadMemberNames() {
@@ -281,11 +436,6 @@ function createSignedLink(req, kind, fileName, ttl) {
   };
 }
 
-function authorizeAdmin(req, parsedUrl) {
-  const headerKey = req.headers['x-file-server-key'] || req.headers['x-admin-key'];
-  return headerKey === secretKey || parsedUrl.query.key === secretKey || parsedUrl.query.admin_key === secretKey;
-}
-
 function isInsidePath(rootPath, filePath) {
   const relative = path.relative(rootPath, filePath);
   return relative && !relative.startsWith('..') && !path.isAbsolute(relative);
@@ -393,7 +543,16 @@ async function getPeerMap() {
 async function listNetworks() {
   const nwids = await ztRequest('GET', '/controller/network');
   const ids = Array.isArray(nwids) ? nwids : [];
-  const networks = await Promise.all(ids.map((nwid) => ztRequest('GET', `/controller/network/${encodeURIComponent(nwid)}`)));
+  const networks = await Promise.all(ids.map(async (nwid) => {
+    const [network, memberList] = await Promise.all([
+      ztRequest('GET', `/controller/network/${encodeURIComponent(nwid)}`),
+      ztRequest('GET', `/controller/network/${encodeURIComponent(nwid)}/member`).catch(() => []),
+    ]);
+    return {
+      ...network,
+      memberCount: normalizeMemberIds(memberList).length,
+    };
+  }));
   return networks.sort((a, b) => String(a.name || a.nwid).localeCompare(String(b.name || b.nwid)));
 }
 
@@ -582,7 +741,10 @@ function sendApiError(res, error) {
 
 async function handleControllerApi(req, res, parsedUrl) {
   if (!authorizeAdmin(req, parsedUrl)) {
-    return sendJson(res, 401, { error: 'Unauthorized' });
+    return sendJson(res, 401, {
+      error: authStore.mustChangePassword ? 'Password change required' : 'Unauthorized',
+      mustChangePassword: Boolean(authStore.mustChangePassword),
+    });
   }
 
   const parts = parsedUrl.pathname.split('/').filter(Boolean);
@@ -683,6 +845,85 @@ async function handleControllerApi(req, res, parsedUrl) {
   }
 
   return sendJson(res, 404, { error: 'Controller API route not found' });
+}
+
+async function handleAuthApi(req, res, parsedUrl) {
+  const method = req.method;
+  const body = ['POST', 'PATCH', 'PUT'].includes(method) ? await readRequestBody(req) : {};
+
+  if (parsedUrl.pathname === '/api/auth/status' && method === 'GET') {
+    return sendJson(res, 200, authState(req, parsedUrl));
+  }
+
+  if (parsedUrl.pathname === '/api/auth/login' && method === 'POST') {
+    const username = String(body.username || '').trim();
+    const password = String(body.password || '');
+    if (username !== authStore.username || !verifyAdminPassword(password)) {
+      return sendJson(res, 401, { error: 'Invalid username or password' });
+    }
+    const token = createSession();
+    return sendJson(res, 200, {
+      token,
+      username: authStore.username,
+      mustChangePassword: Boolean(authStore.mustChangePassword),
+      sessionTtlSeconds: Math.floor(sessionTtlMs / 1000),
+    });
+  }
+
+  if (parsedUrl.pathname === '/api/auth/logout' && method === 'POST') {
+    const auth = getSession(req, parsedUrl);
+    if (auth) {
+      delete authStore.sessions[auth.token];
+      saveAuthStore();
+    }
+    return sendJson(res, 200, { loggedOut: true });
+  }
+
+  if (parsedUrl.pathname === '/api/auth/password' && method === 'POST') {
+    const auth = authorizeAdmin(req, parsedUrl, { allowPasswordChange: true });
+    if (!auth) {
+      return sendJson(res, 401, { error: 'Unauthorized' });
+    }
+    const currentPassword = String(body.currentPassword || '');
+    const newPassword = String(body.newPassword || '');
+    if (!verifyAdminPassword(currentPassword)) {
+      return sendJson(res, 400, { error: 'Current password is incorrect' });
+    }
+    const policyError = passwordPolicyError(newPassword);
+    if (policyError) {
+      return sendJson(res, 400, { error: policyError });
+    }
+    setAdminPassword(newPassword, false);
+    const token = createSession();
+    return sendJson(res, 200, {
+      token,
+      username: authStore.username,
+      mustChangePassword: false,
+      sessionTtlSeconds: Math.floor(sessionTtlMs / 1000),
+    });
+  }
+
+  if (parsedUrl.pathname === '/api/auth/reset' && method === 'POST') {
+    const auth = authorizeAdmin(req, parsedUrl);
+    if (!auth) {
+      return sendJson(res, 401, { error: 'Unauthorized' });
+    }
+    const newPassword = String(body.newPassword || '');
+    const policyError = passwordPolicyError(newPassword);
+    if (policyError) {
+      return sendJson(res, 400, { error: policyError });
+    }
+    setAdminPassword(newPassword, false);
+    const token = createSession();
+    return sendJson(res, 200, {
+      token,
+      username: authStore.username,
+      mustChangePassword: false,
+      sessionTtlSeconds: Math.floor(sessionTtlMs / 1000),
+    });
+  }
+
+  return sendJson(res, 404, { error: 'Auth API route not found' });
 }
 
 function linuxInstaller(req, expires) {
@@ -905,6 +1146,22 @@ fi
 
 function handleApi(req, res, parsedUrl) {
   if (parsedUrl.pathname === '/api/status') {
+    return sendJson(res, 200, {
+      service: 'zerotier-planet',
+      fileServerPort: String(port),
+      publicUrl: requestBaseUrl(req),
+      integratedController: true,
+      auth: authState(req, parsedUrl),
+    });
+  }
+
+  if (parsedUrl.pathname === '/api/overview') {
+    if (!authorizeAdmin(req, parsedUrl)) {
+      return sendJson(res, 401, {
+        error: authStore.mustChangePassword ? 'Password change required' : 'Unauthorized',
+        mustChangePassword: Boolean(authStore.mustChangePassword),
+      });
+    }
     const files = listDownloadableFiles();
     return sendJson(res, 200, {
       service: 'zerotier-planet',
@@ -916,6 +1173,7 @@ function handleApi(req, res, parsedUrl) {
       linkTtlSeconds: defaultTtl,
       maxLinkTtlSeconds: maxTtl,
       integratedController: true,
+      auth: authState(req, parsedUrl),
     });
   }
 
@@ -961,6 +1219,11 @@ function handleApi(req, res, parsedUrl) {
 
 const server = http.createServer((req, res) => {
   const parsedUrl = parseRequestUrl(req);
+
+  if (parsedUrl.pathname.startsWith('/api/auth/')) {
+    handleAuthApi(req, res, parsedUrl).catch((error) => sendApiError(res, error));
+    return;
+  }
 
   if (parsedUrl.pathname.startsWith('/api/controller/')) {
     handleControllerApi(req, res, parsedUrl).catch((error) => sendApiError(res, error));

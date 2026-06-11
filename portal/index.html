@@ -7,67 +7,129 @@
     <link rel="stylesheet" href="/styles.css">
   </head>
   <body>
-    <div class="app-shell">
+    <div class="auth-shell" id="authShell">
+      <section class="auth-visual" aria-hidden="true">
+        <div class="orbital-card">
+          <div class="mesh-visual">
+            <span></span><span></span><span></span><span></span><span></span>
+          </div>
+          <div class="signal-lines">
+            <i></i><i></i><i></i><i></i>
+          </div>
+        </div>
+      </section>
+
+      <main class="auth-panel">
+        <div class="auth-brand">
+          <span class="brand-mark">ZP</span>
+          <div>
+            <strong>ZeroTier Planet</strong>
+            <small>Private network control plane</small>
+          </div>
+        </div>
+
+        <form class="auth-card active" id="loginForm">
+          <p class="eyebrow">Operator login</p>
+          <h1>Sign in to the console</h1>
+          <p class="muted">Initial credentials are <code>admin</code> / <code>password</code>. The first sign-in requires a new password.</p>
+          <label class="field">
+            <span>Username</span>
+            <input id="loginUsername" type="text" autocomplete="username" value="admin">
+          </label>
+          <label class="field">
+            <span>Password</span>
+            <input id="loginPassword" type="password" autocomplete="current-password">
+          </label>
+          <button class="button primary wide" type="submit">Sign in</button>
+        </form>
+
+        <form class="auth-card" id="firstPasswordForm">
+          <p class="eyebrow">First sign-in</p>
+          <h1>Set a new password</h1>
+          <p class="muted">Use at least 8 characters with letters and numbers. Existing sessions are replaced after the password changes.</p>
+          <label class="field">
+            <span>Current password</span>
+            <input id="firstCurrentPassword" type="password" autocomplete="current-password">
+          </label>
+          <label class="field">
+            <span>New password</span>
+            <input id="firstNewPassword" type="password" autocomplete="new-password">
+          </label>
+          <label class="field">
+            <span>Confirm new password</span>
+            <input id="firstConfirmPassword" type="password" autocomplete="new-password">
+          </label>
+          <button class="button primary wide" type="submit">Update password</button>
+        </form>
+      </main>
+    </div>
+
+    <div class="app-shell" id="appShell" hidden>
       <aside class="sidebar">
         <a class="brand" href="#overview" aria-label="ZeroTier Planet Console">
           <span class="brand-mark">ZP</span>
           <span>
             <strong>ZeroTier Planet</strong>
-            <small>Private network console</small>
+            <small>Control plane</small>
           </span>
         </a>
         <nav class="side-nav" aria-label="Primary">
-          <a href="#overview" data-nav="overview">Overview</a>
-          <a href="#networks" data-nav="networks">Networks</a>
-          <a href="#delivery" data-nav="delivery">Client delivery</a>
-          <a href="#guide" data-nav="guide">Guide</a>
-          <a href="#settings" data-nav="settings">Access</a>
+          <a href="#overview" data-nav="overview"><span>Overview</span></a>
+          <a href="#networks" data-nav="networks"><span>Networks</span></a>
+          <a href="#delivery" data-nav="delivery"><span>Client delivery</span></a>
+          <a href="#guide" data-nav="guide"><span>Guide</span></a>
+          <a href="#settings" data-nav="settings"><span>Settings</span></a>
         </nav>
         <div class="sidebar-status">
-          <span class="label">Console state</span>
-          <strong id="consoleState">Locked</strong>
-          <small id="consoleStateDetail">Paste the server key to manage networks.</small>
+          <span class="label">Signed in as</span>
+          <strong id="signedInUser">admin</strong>
+          <small id="sessionState">Session active</small>
         </div>
       </aside>
 
       <main class="workspace">
         <header class="topbar">
           <div>
-            <p class="eyebrow">Unified control plane</p>
-            <h1>Network operations and client rollout in one console.</h1>
+            <p class="eyebrow" id="pageKicker">Operations</p>
+            <h1 id="pageTitle">Overview</h1>
           </div>
           <div class="top-actions">
             <button class="button" id="refreshAllButton" type="button">Refresh</button>
-            <a class="button ghost" href="#settings">Server key</a>
+            <button class="button ghost" id="logoutButton" type="button">Sign out</button>
           </div>
         </header>
 
-        <section class="metrics" aria-live="polite">
-          <div>
-            <span class="label">Planet</span>
-            <strong id="planetState">Checking</strong>
-          </div>
-          <div>
-            <span class="label">Controller</span>
-            <strong id="controllerStatus">Locked</strong>
-          </div>
-          <div>
-            <span class="label">Networks</span>
-            <strong id="networkCount">--</strong>
-          </div>
-          <div>
-            <span class="label">ZeroTier address</span>
-            <strong id="ztAddress">--</strong>
-          </div>
-        </section>
-
-        <section class="view-section" id="overview">
-          <div class="section-heading">
+        <section class="page active" data-page="overview">
+          <div class="hero-panel">
             <div>
-              <p class="eyebrow">Overview</p>
-              <h2>Deployment health</h2>
+              <p class="eyebrow">Deployment health</p>
+              <h2>Planet readiness, controller state, and client delivery status.</h2>
+              <p class="muted">Operational telemetry is available after sign-in only.</p>
+            </div>
+            <div class="hero-mesh" aria-hidden="true">
+              <span></span><span></span><span></span><span></span>
             </div>
           </div>
+
+          <div class="metrics" aria-live="polite">
+            <div>
+              <span class="label">Planet</span>
+              <strong id="planetState">--</strong>
+            </div>
+            <div>
+              <span class="label">Controller</span>
+              <strong id="controllerStatus">--</strong>
+            </div>
+            <div>
+              <span class="label">Networks</span>
+              <strong id="networkCount">--</strong>
+            </div>
+            <div>
+              <span class="label">ZeroTier address</span>
+              <strong id="ztAddress">--</strong>
+            </div>
+          </div>
+
           <div class="overview-grid">
             <div class="panel">
               <div class="panel-heading">
@@ -84,44 +146,53 @@
                   <dd id="ztPort">--</dd>
                 </div>
                 <div>
-                  <dt>File server port</dt>
+                  <dt>Console port</dt>
                   <dd id="filePort">--</dd>
                 </div>
                 <div>
-                  <dt>Link lifetime</dt>
+                  <dt>Default link lifetime</dt>
                   <dd id="ttlState">--</dd>
                 </div>
               </dl>
             </div>
-            <div class="panel visual-panel">
-              <img src="/assets/zerotier-network.png" alt="">
+            <div class="panel">
+              <div class="panel-heading">
+                <h3>Generated files</h3>
+                <span class="count" id="fileCount">0</span>
+              </div>
+              <div class="file-list" id="fileList"></div>
             </div>
           </div>
         </section>
 
-        <section class="view-section" id="networks">
+        <section class="page" data-page="networks">
           <div class="section-heading">
             <div>
               <p class="eyebrow">Controller</p>
-              <h2>Networks</h2>
+              <h2>Network operations</h2>
             </div>
             <form class="inline-form" id="createNetworkForm">
               <input id="newNetworkName" type="text" placeholder="New network name" autocomplete="off">
-              <button class="button primary" type="submit">Create</button>
+              <button class="button primary" type="submit">Create network</button>
             </form>
           </div>
 
           <div class="manager-grid">
-            <div class="panel network-list-panel">
+            <aside class="panel network-list-panel">
               <div class="panel-heading">
-                <h3>Network list</h3>
+                <h3>Networks</h3>
                 <span class="count" id="networkListCount">0</span>
               </div>
-              <div class="list" id="networkList"></div>
-            </div>
+              <label class="field compact-field">
+                <span>Search</span>
+                <input id="networkSearch" type="search" placeholder="Name or network ID">
+              </label>
+              <div class="list network-cards" id="networkList"></div>
+            </aside>
 
-            <div class="network-workspace" id="networkWorkspace">
+            <div class="network-workspace">
               <div class="empty-state" id="networkEmpty">
+                <div class="empty-visual" aria-hidden="true"></div>
                 <h3>No network selected</h3>
                 <p>Select a network or create one to manage members, routes, DNS, and address allocation.</p>
               </div>
@@ -134,7 +205,8 @@
                     <p id="selectedNetworkId" class="muted mono">--</p>
                   </div>
                   <div class="summary-actions">
-                    <button class="button danger" id="deleteNetworkButton" type="button">Delete network</button>
+                    <span class="pill" id="selectedNetworkPrivacy">--</span>
+                    <button class="button danger" id="deleteNetworkButton" type="button">Delete</button>
                   </div>
                 </div>
 
@@ -153,7 +225,7 @@
                         <h3>Members</h3>
                         <p class="muted">Authorize devices, set bridge mode, add labels, and manage assigned addresses.</p>
                       </div>
-                      <button class="button" id="refreshNetworkButton" type="button">Refresh members</button>
+                      <button class="button" id="refreshNetworkButton" type="button">Refresh</button>
                     </div>
                     <div class="table-wrap">
                       <table class="data-table">
@@ -177,9 +249,7 @@
                 <div class="tab-panel" data-panel="settings">
                   <div class="settings-grid">
                     <form class="panel form-panel" id="networkBasicsForm">
-                      <div class="panel-heading">
-                        <h3>Network basics</h3>
-                      </div>
+                      <div class="panel-heading"><h3>Network basics</h3></div>
                       <label class="field">
                         <span>Name</span>
                         <input id="networkNameInput" type="text" autocomplete="off">
@@ -187,7 +257,7 @@
                       <label class="switch-row">
                         <span>
                           <strong>Private network</strong>
-                          <small>Require explicit authorization before members can pass traffic.</small>
+                          <small>Require explicit member authorization.</small>
                         </span>
                         <input id="networkPrivateInput" type="checkbox">
                       </label>
@@ -195,9 +265,7 @@
                     </form>
 
                     <form class="panel form-panel" id="easySetupForm">
-                      <div class="panel-heading">
-                        <h3>Easy setup</h3>
-                      </div>
+                      <div class="panel-heading"><h3>Easy setup</h3></div>
                       <label class="field">
                         <span>Managed route CIDR</span>
                         <input id="easyCidr" type="text" placeholder="10.147.17.0/24">
@@ -216,35 +284,21 @@
                     </form>
 
                     <form class="panel form-panel" id="assignModeForm">
-                      <div class="panel-heading">
-                        <h3>Address assignment</h3>
-                      </div>
+                      <div class="panel-heading"><h3>Address assignment</h3></div>
                       <label class="switch-row">
-                        <span>
-                          <strong>IPv4 auto assign</strong>
-                          <small>Assign IPv4 addresses from configured pools.</small>
-                        </span>
+                        <span><strong>IPv4 auto assign</strong><small>Use configured IPv4 pools.</small></span>
                         <input id="v4AssignInput" type="checkbox">
                       </label>
                       <label class="switch-row">
-                        <span>
-                          <strong>IPv6 6plane</strong>
-                          <small>Enable ZeroTier 6plane addressing.</small>
-                        </span>
+                        <span><strong>IPv6 6plane</strong><small>Enable 6plane addressing.</small></span>
                         <input id="v6PlaneInput" type="checkbox">
                       </label>
                       <label class="switch-row">
-                        <span>
-                          <strong>IPv6 RFC4193</strong>
-                          <small>Enable unique local IPv6 addressing.</small>
-                        </span>
+                        <span><strong>IPv6 RFC4193</strong><small>Enable unique local IPv6 addressing.</small></span>
                         <input id="v6RfcInput" type="checkbox">
                       </label>
                       <label class="switch-row">
-                        <span>
-                          <strong>IPv6 auto assign</strong>
-                          <small>Assign IPv6 addresses from managed modes.</small>
-                        </span>
+                        <span><strong>IPv6 auto assign</strong><small>Use managed IPv6 modes.</small></span>
                         <input id="v6ZtInput" type="checkbox">
                       </label>
                       <button class="button primary" type="submit">Save assignment modes</button>
@@ -255,9 +309,7 @@
                 <div class="tab-panel" data-panel="routes">
                   <div class="settings-grid">
                     <form class="panel form-panel" id="routeForm">
-                      <div class="panel-heading">
-                        <h3>Add route</h3>
-                      </div>
+                      <div class="panel-heading"><h3>Add route</h3></div>
                       <label class="field">
                         <span>Target CIDR</span>
                         <input id="routeTarget" type="text" placeholder="10.147.17.0/24">
@@ -270,9 +322,7 @@
                     </form>
 
                     <form class="panel form-panel" id="poolForm">
-                      <div class="panel-heading">
-                        <h3>Add assignment pool</h3>
-                      </div>
+                      <div class="panel-heading"><h3>Add assignment pool</h3></div>
                       <div class="field-grid two">
                         <label class="field">
                           <span>Range start</span>
@@ -299,10 +349,8 @@
                 </div>
 
                 <div class="tab-panel" data-panel="dns">
-                  <form class="panel form-panel" id="dnsForm">
-                    <div class="panel-heading">
-                      <h3>DNS configuration</h3>
-                    </div>
+                  <form class="panel form-panel narrow-form" id="dnsForm">
+                    <div class="panel-heading"><h3>DNS configuration</h3></div>
                     <label class="field">
                       <span>Search domain</span>
                       <input id="dnsDomain" type="text" placeholder="corp.example">
@@ -317,9 +365,7 @@
 
                 <div class="tab-panel" data-panel="raw">
                   <div class="panel">
-                    <div class="panel-heading">
-                      <h3>Controller JSON</h3>
-                    </div>
+                    <div class="panel-heading"><h3>Controller JSON</h3></div>
                     <pre class="raw-json"><code id="rawNetworkJson">{}</code></pre>
                   </div>
                 </div>
@@ -328,19 +374,17 @@
           </div>
         </section>
 
-        <section class="view-section" id="delivery">
+        <section class="page" data-page="delivery">
           <div class="section-heading">
             <div>
               <p class="eyebrow">Client delivery</p>
-              <h2>Planet links and installers</h2>
+              <h2>Signed links and installers</h2>
             </div>
           </div>
 
           <div class="delivery-grid">
             <div class="panel form-panel">
-              <div class="panel-heading">
-                <h3>Link policy</h3>
-              </div>
+              <div class="panel-heading"><h3>Link policy</h3></div>
               <label class="field">
                 <span>Lifetime</span>
                 <select id="ttl">
@@ -349,14 +393,21 @@
                   <option value="3600">1 hour</option>
                 </select>
               </label>
-              <p class="muted">Generated links are signed and expire automatically. The server key never appears in the command.</p>
+              <label class="field">
+                <span>Network ID for installers</span>
+                <select id="deliveryNetwork"></select>
+              </label>
+              <label class="switch-row">
+                <span><strong>Include Network ID</strong><small>Generate non-interactive join commands.</small></span>
+                <input id="includeNetworkId" type="checkbox">
+              </label>
             </div>
 
             <article class="command-card">
               <div>
                 <p class="tool-kicker">Planet file</p>
                 <h3>wget download</h3>
-                <p>For users who already have ZeroTier installed.</p>
+                <p>For clients that already have ZeroTier installed.</p>
               </div>
               <pre><code id="wgetCommand">Generate a link first.</code></pre>
               <div class="button-row">
@@ -368,8 +419,8 @@
             <article class="command-card">
               <div>
                 <p class="tool-kicker">Linux</p>
-                <h3>Install, replace planet, join</h3>
-                <p>Installs ZeroTier if missing, replaces planet, restarts, then asks for Network ID.</p>
+                <h3>Install and join</h3>
+                <p>Installs ZeroTier, replaces planet, restarts the service, then joins a network.</p>
               </div>
               <pre><code id="linuxCommand">Generate an installer first.</code></pre>
               <div class="button-row">
@@ -381,8 +432,8 @@
             <article class="command-card">
               <div>
                 <p class="tool-kicker">macOS</p>
-                <h3>Install, replace planet, join</h3>
-                <p>Uses Homebrew or the official package, then replaces planet and joins a network.</p>
+                <h3>Install and join</h3>
+                <p>Uses Homebrew or the official package, replaces planet, then joins a network.</p>
               </div>
               <pre><code id="macosCommand">Generate an installer first.</code></pre>
               <div class="button-row">
@@ -393,54 +444,64 @@
           </div>
         </section>
 
-        <section class="view-section" id="guide">
+        <section class="page" data-page="guide">
           <div class="section-heading">
             <div>
               <p class="eyebrow">Guide</p>
               <h2>Operator workflow</h2>
             </div>
           </div>
-          <div class="guide-grid">
-            <article>
-              <span>1</span>
-              <h3>Unlock the console</h3>
-              <p>Paste the server key from <code>data/zerotier/config/file_server.key</code>. The key is stored only in this browser.</p>
-            </article>
-            <article>
-              <span>2</span>
-              <h3>Create and configure a network</h3>
-              <p>Create a network, apply Easy setup, then adjust routes, assignment pools, DNS, and access control as needed.</p>
-            </article>
-            <article>
-              <span>3</span>
-              <h3>Distribute client commands</h3>
-              <p>Generate a temporary Linux or macOS installer. Users enter the Network ID when prompted.</p>
-            </article>
-            <article>
-              <span>4</span>
-              <h3>Authorize members</h3>
-              <p>Approve new devices in Members, add friendly names, and verify peer status after authorization.</p>
-            </article>
+          <div class="guide-layout">
+            <div class="guide-grid">
+              <article><span>1</span><h3>Create a network</h3><p>Use Networks to create one or more virtual networks, then apply Easy setup for the common IPv4 case.</p></article>
+              <article><span>2</span><h3>Distribute installers</h3><p>Use Client delivery to generate temporary Linux or macOS commands. Links expire automatically.</p></article>
+              <article><span>3</span><h3>Authorize members</h3><p>New clients appear in Members. Authorize trusted devices and add clear labels for operations.</p></article>
+              <article><span>4</span><h3>Operate safely</h3><p>Use Settings to change or reset the console password. Back up the persistent data directory regularly.</p></article>
+            </div>
+            <div class="panel guide-diagram-panel">
+              <img src="/assets/zerotier-network.png" alt="ZeroTier planet network topology">
+            </div>
           </div>
         </section>
 
-        <section class="view-section" id="settings">
+        <section class="page" data-page="settings">
           <div class="section-heading">
             <div>
-              <p class="eyebrow">Access</p>
-              <h2>Server key</h2>
+              <p class="eyebrow">Settings</p>
+              <h2>Account and session</h2>
             </div>
           </div>
-          <div class="panel access-panel">
-            <label class="field">
-              <span>Server key</span>
-              <input id="adminKey" type="password" autocomplete="off" placeholder="Paste data/zerotier/config/file_server.key">
-            </label>
-            <div class="button-row">
-              <button class="button primary" id="saveKeyButton" type="button">Save locally</button>
-              <button class="button" id="clearKeyButton" type="button">Clear</button>
-            </div>
-            <p class="muted">The key is used to authorize controller operations and signed link generation. It is stored in localStorage only.</p>
+          <div class="settings-grid">
+            <form class="panel form-panel" id="changePasswordForm">
+              <div class="panel-heading"><h3>Change password</h3></div>
+              <label class="field">
+                <span>Current password</span>
+                <input id="currentPassword" type="password" autocomplete="current-password">
+              </label>
+              <label class="field">
+                <span>New password</span>
+                <input id="newPassword" type="password" autocomplete="new-password">
+              </label>
+              <label class="field">
+                <span>Confirm new password</span>
+                <input id="confirmPassword" type="password" autocomplete="new-password">
+              </label>
+              <button class="button primary" type="submit">Change password</button>
+            </form>
+
+            <form class="panel form-panel" id="resetPasswordForm">
+              <div class="panel-heading"><h3>Reset password</h3></div>
+              <p class="muted">Use this after sign-in to replace the console password and invalidate existing sessions.</p>
+              <label class="field">
+                <span>New password</span>
+                <input id="resetNewPassword" type="password" autocomplete="new-password">
+              </label>
+              <label class="field">
+                <span>Confirm new password</span>
+                <input id="resetConfirmPassword" type="password" autocomplete="new-password">
+              </label>
+              <button class="button danger" type="submit">Reset password</button>
+            </form>
           </div>
         </section>
       </main>

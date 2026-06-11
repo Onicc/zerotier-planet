@@ -49,17 +49,16 @@ cd zerotier-planet
 http://服务器IP:3000
 ```
 
-## 解锁控制台
+## 登录控制台
 
-统一控制台使用文件服务管理密钥进行管理操作鉴权。部署完成后在服务器执行：
+统一控制台使用账号密码登录。首次部署后的初始凭据为：
 
-```bash
-docker exec myztplanet cat /app/config/file_server.key
+```text
+用户名：admin
+密码：password
 ```
 
-如果需要直接读取挂载目录，也可以执行 `sudo cat ./data/zerotier/config/file_server.key`。
-
-打开控制台后进入 `Access`，粘贴该密钥并保存。密钥只保存在当前浏览器的 `localStorage` 中。
+首次登录会强制重置密码。后续可以在 `Settings` 中修改密码或重置密码。
 
 ## 创建网络
 
@@ -234,7 +233,8 @@ docker restart myztplanet
 
 ## 安全建议
 
-- 不要公开管理密钥，推荐使用 `docker exec myztplanet cat /app/config/file_server.key` 读取
+- 首次登录后立即完成强制改密
+- 不要使用弱密码或重复使用其他系统密码
 - 只向可信用户开放统一控制台
 - 建议通过防火墙限制 `3000/tcp` 的访问来源
 - 定期备份 `./data/zerotier`
@@ -262,7 +262,7 @@ docker restart myztplanet
 检查以下项目：
 
 - `planet` 文件已经生成
-- `Server key` 填写的是 `docker exec myztplanet cat /app/config/file_server.key` 输出的内容
+- 当前登录会话未过期
 - 正在访问正确的控制台端口
 
 ### 支持 Windows 自动脚本吗？
