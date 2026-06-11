@@ -15,19 +15,25 @@ start() {
     node ${APP_PATH}/portal_server.js || exit 1
 }
 
+refresh_zerotier_binary() {
+    cp ${BACKUP_PATH}/zerotier-one/zerotier-one ${ZEROTIER_PATH}/zerotier-one
+    chmod +x ${ZEROTIER_PATH}/zerotier-one
+    ln -sf zerotier-one ${ZEROTIER_PATH}/zerotier-idtool
+    ln -sf zerotier-one ${ZEROTIER_PATH}/zerotier-cli
+}
+
+ensure_controller_storage() {
+    mkdir -p ${ZEROTIER_PATH}/controller.d
+}
+
 ensure_zerotier_runtime() {
     mkdir -p ${CONFIG_PATH}
     if [ ! -f "${CONFIG_PATH}/zerotier-one.port" ]; then
         echo "${ZT_PORT}" > ${CONFIG_PATH}/zerotier-one.port
     fi
 
-    if [ ! -x "${ZEROTIER_PATH}/zerotier-one" ]; then
-        cp ${BACKUP_PATH}/zerotier-one/zerotier-one ${ZEROTIER_PATH}/zerotier-one
-        chmod +x ${ZEROTIER_PATH}/zerotier-one
-    fi
-
-    ln -sf zerotier-one ${ZEROTIER_PATH}/zerotier-idtool
-    ln -sf zerotier-one ${ZEROTIER_PATH}/zerotier-cli
+    refresh_zerotier_binary
+    ensure_controller_storage
 }
 
 # 检查文件服务器端口配置文件
@@ -47,6 +53,8 @@ init_zerotier_data() {
     echo "Initializing ZeroTier data"
     echo "${ZT_PORT}" > ${CONFIG_PATH}/zerotier-one.port
     cp -r ${BACKUP_PATH}/zerotier-one/* $ZEROTIER_PATH
+    refresh_zerotier_binary
+    ensure_controller_storage
 
     cd $ZEROTIER_PATH
     openssl rand -hex 16 > authtoken.secret

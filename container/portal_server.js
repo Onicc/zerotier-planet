@@ -338,7 +338,13 @@ function ztRequest(method, route, body) {
         }
 
         if (response.statusCode >= 400) {
-          const message = typeof payload === 'string' ? payload : `ZeroTier API returned ${response.statusCode}`;
+          let message = typeof payload === 'string' ? payload : `ZeroTier API returned ${response.statusCode}`;
+          if (response.statusCode === 404 && route.startsWith('/controller/')) {
+            message = [
+              'ZeroTier embedded controller API is unavailable.',
+              'Restart the container with the latest image so the bundled zerotier-one binary is refreshed from the image.',
+            ].join(' ');
+          }
           reject(Object.assign(new Error(message), { statusCode: response.statusCode, payload }));
           return;
         }

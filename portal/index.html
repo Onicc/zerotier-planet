@@ -193,8 +193,8 @@
             <div class="network-workspace">
               <div class="empty-state" id="networkEmpty">
                 <div class="empty-visual" aria-hidden="true"></div>
-                <h3>No network selected</h3>
-                <p>Select a network or create one to manage members, routes, DNS, and address allocation.</p>
+                <h3 id="networkEmptyTitle">No network selected</h3>
+                <p id="networkEmptyMessage">Select a network or create one to manage members, routes, DNS, and address allocation.</p>
               </div>
 
               <div class="network-detail" id="networkDetail" hidden>
@@ -471,24 +471,7 @@
               <h2>Account and session</h2>
             </div>
           </div>
-          <div class="settings-grid">
-            <form class="panel form-panel" id="changePasswordForm">
-              <div class="panel-heading"><h3>Change password</h3></div>
-              <label class="field">
-                <span>Current password</span>
-                <input id="currentPassword" type="password" autocomplete="current-password">
-              </label>
-              <label class="field">
-                <span>New password</span>
-                <input id="newPassword" type="password" autocomplete="new-password">
-              </label>
-              <label class="field">
-                <span>Confirm new password</span>
-                <input id="confirmPassword" type="password" autocomplete="new-password">
-              </label>
-              <button class="button primary" type="submit">Change password</button>
-            </form>
-
+          <div class="settings-grid single">
             <form class="panel form-panel" id="resetPasswordForm">
               <div class="panel-heading"><h3>Reset password</h3></div>
               <p class="muted">Use this after sign-in to replace the console password and invalidate existing sessions.</p>

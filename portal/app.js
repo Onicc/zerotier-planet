@@ -44,6 +44,8 @@ const elements = {
   networkListCount: $('networkListCount'),
   networkSearch: $('networkSearch'),
   networkEmpty: $('networkEmpty'),
+  networkEmptyTitle: $('networkEmptyTitle'),
+  networkEmptyMessage: $('networkEmptyMessage'),
   networkDetail: $('networkDetail'),
   selectedNetworkName: $('selectedNetworkName'),
   selectedNetworkId: $('selectedNetworkId'),
@@ -105,6 +107,19 @@ function saveSession(payload) {
 function clearSession() {
   state.token = '';
   sessionStorage.removeItem('ztp_session_token');
+}
+
+function clearPasswordFields() {
+  [
+    elements.loginPassword,
+    elements.firstCurrentPassword,
+    elements.firstNewPassword,
+    elements.firstConfirmPassword,
+    $('resetNewPassword'),
+    $('resetConfirmPassword'),
+  ].filter(Boolean).forEach((input) => {
+    input.value = '';
+  });
 }
 
 async function requestJson(path, options = {}) {
@@ -185,29 +200,14 @@ async function submitFirstPassword(event) {
     body: { currentPassword, newPassword },
   });
   saveSession(payload);
-  elements.firstCurrentPassword.value = '';
-  elements.firstNewPassword.value = '';
-  elements.firstConfirmPassword.value = '';
+  clearPasswordFields();
   toast('Password updated.');
   await enterApp();
 }
 
-async function submitChangePassword(event) {
-  event.preventDefault();
-  const currentPassword = $('currentPassword').value;
-  const newPassword = $('newPassword').value;
-  validatePasswordPair(newPassword, $('confirmPassword').value);
-  const payload = await requestJson('/api/auth/password', {
-    method: 'POST',
-    body: { currentPassword, newPassword },
-  });
-  saveSession(payload);
-  event.currentTarget.reset();
-  toast('Password changed.');
-}
-
 async function submitResetPassword(event) {
   event.preventDefault();
+  const form = event.currentTarget;
   const newPassword = $('resetNewPassword').value;
   validatePasswordPair(newPassword, $('resetConfirmPassword').value);
   if (!window.confirm('Reset the console password and invalidate existing sessions?')) {
@@ -218,7 +218,10 @@ async function submitResetPassword(event) {
     body: { newPassword },
   });
   saveSession(payload);
-  event.currentTarget.reset();
+  if (form && typeof form.reset === 'function') {
+    form.reset();
+  }
+  clearPasswordFields();
   toast('Password reset.');
 }
 
@@ -229,10 +232,12 @@ async function logout() {
     // Session may already be expired.
   }
   clearSession();
+  clearPasswordFields();
   showLogin();
 }
 
 function showLogin() {
+  clearPasswordFields();
   elements.authShell.hidden = false;
   elements.appShell.hidden = true;
   elements.loginForm.classList.add('active');
@@ -262,17 +267,25 @@ async function fetchOverview() {
 }
 
 async function fetchController() {
-  state.controller = await requestJson('/api/controller/status');
-  state.networks = state.controller.networks || [];
-  renderController();
+  try {
+    state.controller = await requestJson('/api/controller/status');
+    state.networks = state.controller.networks || [];
+    renderController();
 
-  if (state.selectedNetworkId && state.networks.some((network) => network.nwid === state.selectedNetworkId)) {
-    await loadNetwork(state.selectedNetworkId, { silent: true });
-  } else if (state.networks.length) {
-    await loadNetwork(state.networks[0].nwid, { silent: true });
-  } else {
+    if (state.selectedNetworkId && state.networks.some((network) => network.nwid === state.selectedNetworkId)) {
+      await loadNetwork(state.selectedNetworkId, { silent: true });
+    } else if (state.networks.length) {
+      await loadNetwork(state.networks[0].nwid, { silent: true });
+    } else {
+      state.selectedBundle = null;
+      renderSelectedNetwork();
+    }
+  } catch (error) {
+    state.controller = null;
+    state.networks = [];
     state.selectedBundle = null;
-    renderSelectedNetwork();
+    renderControllerError(error.message);
+    toast(error.message);
   }
 }
 
@@ -310,6 +323,20 @@ function renderController() {
   elements.networkListCount.textContent = String(filteredNetworks().length);
   renderNetworkList();
   renderDeliveryNetworks();
+}
+
+function renderControllerError(message) {
+  elements.controllerStatus.textContent = 'Unavailable';
+  elements.controllerStatus.className = 'danger-text';
+  elements.networkCount.textContent = '0';
+  elements.ztAddress.textContent = '--';
+  elements.networkListCount.textContent = '0';
+  elements.networkList.innerHTML = `<div class="empty-inline danger-text">${escapeHtml(message)}</div>`;
+  elements.deliveryNetwork.innerHTML = '<option value="">Controller unavailable</option>';
+  elements.networkEmpty.hidden = false;
+  elements.networkDetail.hidden = true;
+  elements.networkEmptyTitle.textContent = 'Controller unavailable';
+  elements.networkEmptyMessage.textContent = message;
 }
 
 function filteredNetworks() {
@@ -381,6 +408,8 @@ function renderSelectedNetwork() {
   if (!bundle || !bundle.network) {
     elements.networkEmpty.hidden = false;
     elements.networkDetail.hidden = true;
+    elements.networkEmptyTitle.textContent = 'No network selected';
+    elements.networkEmptyMessage.textContent = 'Select a network or create one to manage members, routes, DNS, and address allocation.';
     return;
   }
 
@@ -562,6 +591,7 @@ async function submitEasySetup(event) {
 
 async function submitRoute(event) {
   event.preventDefault();
+  const form = event.currentTarget;
   state.selectedBundle = await requestJson(`/api/controller/networks/${encodeURIComponent(state.selectedNetworkId)}/routes`, {
     method: 'POST',
     body: {
@@ -569,13 +599,16 @@ async function submitRoute(event) {
       via: $('routeVia').value.trim() || null,
     },
   });
-  event.currentTarget.reset();
+  if (form && typeof form.reset === 'function') {
+    form.reset();
+  }
   renderSelectedNetwork();
   toast('Route added.');
 }
 
 async function submitPool(event) {
   event.preventDefault();
+  const form = event.currentTarget;
   state.selectedBundle = await requestJson(`/api/controller/networks/${encodeURIComponent(state.selectedNetworkId)}/ip-pools`, {
     method: 'POST',
     body: {
@@ -583,7 +616,9 @@ async function submitPool(event) {
       ipRangeEnd: $('poolEnd').value.trim(),
     },
   });
-  event.currentTarget.reset();
+  if (form && typeof form.reset === 'function') {
+    form.reset();
+  }
   renderSelectedNetwork();
   toast('Assignment pool added.');
 }
@@ -800,7 +835,6 @@ function formatBytes(value) {
 function bindEvents() {
   elements.loginForm.addEventListener('submit', (event) => login(event).catch((error) => toast(error.message)));
   elements.firstPasswordForm.addEventListener('submit', (event) => submitFirstPassword(event).catch((error) => toast(error.message)));
-  $('changePasswordForm').addEventListener('submit', (event) => submitChangePassword(event).catch((error) => toast(error.message)));
   $('resetPasswordForm').addEventListener('submit', (event) => submitResetPassword(event).catch((error) => toast(error.message)));
   $('logoutButton').addEventListener('click', () => logout());
   $('refreshAllButton').addEventListener('click', () => refreshAll().catch((error) => toast(error.message)));
