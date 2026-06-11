@@ -1,6 +1,9 @@
 FROM alpine:3.14 AS builder
 
 ENV TZ=Asia/Shanghai
+# The integrated console requires ZeroTier's embedded controller routes.
+# Newer upstream tags may build without /controller/network unless their
+# controller-specific build chain is used, so keep this on a verified ref.
 ARG TAG=actions
 ARG ZEROTIER_REPO=https://github.com/zerotier/ZeroTierOne.git
 ENV TAG=${TAG}
@@ -22,6 +25,7 @@ RUN set -x\
     && git checkout ${TAG}\
     && echo "checkout ZeroTierOne ref:${TAG}"\
     && make -j\
+    && grep -a -q '/controller/network' zerotier-one\
     && echo "make success!"\
     && ln -sf /app/ZeroTierOne/zerotier-one /usr/sbin/zerotier-one \
     && (zerotier-one -d || true)\

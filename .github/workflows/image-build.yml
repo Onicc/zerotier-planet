@@ -12,6 +12,7 @@ on:
 env:
   IMAGE_NAME: zerotier-planet
   DOCKERHUB_USERNAME: ${{ vars.DOCKERHUB_USERNAME || secrets.DOCKERHUB_USERNAME }}
+  ZEROTIER_REF: actions
 
 jobs:
   build:
@@ -19,20 +20,6 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-
-      - name: Get latest ZeroTierOne tag
-        id: zt
-        shell: bash
-        run: |
-          set -euo pipefail
-          latest_tag="$(
-            curl -fsSL https://api.github.com/repos/zerotier/ZeroTierOne/tags \
-              | jq -r '.[].name' \
-              | grep -E '^[0-9]+\.[0-9]+\.[0-9]+$' \
-              | sort -V \
-              | tail -n 1
-          )"
-          echo "tag=${latest_tag}" >> "$GITHUB_OUTPUT"
 
       - name: Set up QEMU
         uses: docker/setup-qemu-action@v3
@@ -69,8 +56,8 @@ jobs:
           push: true
           tags: |
             ${{ env.DOCKERHUB_USERNAME }}/${{ env.IMAGE_NAME }}:latest
-            ${{ env.DOCKERHUB_USERNAME }}/${{ env.IMAGE_NAME }}:${{ steps.zt.outputs.tag }}
+            ${{ env.DOCKERHUB_USERNAME }}/${{ env.IMAGE_NAME }}:${{ env.ZEROTIER_REF }}
           build-args: |
-            TAG=${{ steps.zt.outputs.tag }}
+            TAG=${{ env.ZEROTIER_REF }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
