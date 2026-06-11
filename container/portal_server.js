@@ -2,6 +2,7 @@ const http = require('http');
 const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
+const net = require('net');
 
 const port = Number(process.env.FILE_SERVER_PORT || 3000);
 const appPath = process.env.APP_PATH || '/app';
@@ -622,7 +623,9 @@ function serveStatic(req, res, parsedUrl) {
     '.jpg': 'image/jpeg',
   };
   const contentType = mimeTypes[extname] || 'application/octet-stream';
-  const cacheControl = extname === '.html' ? 'no-store' : 'public, max-age=300';
+  const cacheControl = ['.html', '.js', '.css'].includes(extname)
+    ? 'no-store'
+    : 'public, max-age=300';
 
   res.writeHead(200, {
     'Content-Type': contentType,
@@ -938,6 +941,9 @@ async function addIpAssignment(nwid, memberId, body) {
   const ipAddress = String(body.ipAddress || '').trim();
   if (!ipAddress) {
     throw Object.assign(new Error('IP address is required'), { statusCode: 400 });
+  }
+  if (!net.isIP(ipAddress)) {
+    throw Object.assign(new Error('IP address must be a valid IPv4 or IPv6 address'), { statusCode: 400 });
   }
   const member = await ztRequest('GET', `/controller/network/${encodeURIComponent(nwid)}/member/${encodeURIComponent(memberId)}`);
   const ipAssignments = Array.isArray(member.ipAssignments) ? member.ipAssignments.slice() : [];

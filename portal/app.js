@@ -72,6 +72,13 @@ const elements = {
   wgetCommand: $('wgetCommand'),
   linuxCommand: $('linuxCommand'),
   macosCommand: $('macosCommand'),
+  easyPoolPreview: $('easyPoolPreview'),
+  deliveryReadinessNote: $('deliveryReadinessNote'),
+  refreshAllButton: $('refreshAllButton'),
+  refreshNetworkButton: $('refreshNetworkButton'),
+  planetLinkButton: $('planetLinkButton'),
+  linuxLinkButton: $('linuxLinkButton'),
+  macosLinkButton: $('macosLinkButton'),
 };
 
 const pageMeta = {
@@ -237,19 +244,51 @@ function poolRangeError(cidr, poolStart, poolEnd) {
 
 async function withPending(form, pendingText, operation) {
   const submitButton = form?.querySelector('button[type="submit"]');
-  const originalText = submitButton?.textContent || '';
-  if (submitButton) {
-    submitButton.disabled = true;
-    submitButton.textContent = pendingText;
+  return withButtonPending(submitButton, pendingText, operation);
+}
+
+async function withButtonPending(button, pendingText, operation) {
+  const originalText = button?.textContent || '';
+  const wasDisabled = Boolean(button?.disabled);
+  const originalBusy = button?.getAttribute('aria-busy');
+  if (button) {
+    button.disabled = true;
+    button.textContent = pendingText;
+    button.setAttribute('aria-busy', 'true');
   }
   try {
     return await operation();
   } finally {
-    if (submitButton) {
-      submitButton.disabled = false;
-      submitButton.textContent = originalText;
+    if (button) {
+      button.textContent = originalText;
+      button.disabled = wasDisabled;
+      if (originalBusy === null) {
+        button.removeAttribute('aria-busy');
+      } else {
+        button.setAttribute('aria-busy', originalBusy);
+      }
     }
   }
+}
+
+function setButtonDisabled(button, disabled) {
+  if (button) {
+    button.disabled = Boolean(disabled);
+  }
+}
+
+async function refreshAllWithFeedback() {
+  await withButtonPending(elements.refreshAllButton, 'Refreshing...', refreshAll);
+  toast('Refreshed.');
+}
+
+async function refreshSelectedNetworkWithFeedback() {
+  if (!state.selectedNetworkId) {
+    toast('Select a network first.');
+    return;
+  }
+  await withButtonPending(elements.refreshNetworkButton, 'Refreshing...', () => loadNetwork(state.selectedNetworkId, { silent: true }));
+  toast('Network refreshed.');
 }
 
 async function requestJson(path, options = {}) {
@@ -293,13 +332,14 @@ async function fetchPublicStatus() {
 
 async function login(event) {
   event.preventDefault();
+  const form = event.currentTarget;
   const username = elements.loginUsername.value.trim();
   const password = elements.loginPassword.value;
-  const payload = await requestJson('/api/auth/login', {
+  const payload = await withPending(form, 'Signing in...', () => requestJson('/api/auth/login', {
     method: 'POST',
     auth: false,
     body: { username, password },
-  });
+  }));
   saveSession(payload);
   elements.loginPassword.value = '';
   if (payload.mustChangePassword) {
@@ -426,6 +466,7 @@ async function refreshAll() {
 function renderOverview() {
   const overview = state.overview || {};
   const files = overview.files || [];
+  const hasPlanet = Boolean(overview.hasPlanet);
   elements.planetState.textContent = overview.hasPlanet ? 'Ready' : 'Missing';
   elements.planetState.className = overview.hasPlanet ? 'ok' : 'danger-text';
   elements.publicUrl.textContent = overview.publicUrl || '--';
@@ -441,6 +482,10 @@ function renderOverview() {
       <span>${formatBytes(file.size)}</span>
     </div>
   `).join('') : '<div class="empty-inline">No downloadable files are available yet.</div>';
+  setButtonDisabled(elements.planetLinkButton, !hasPlanet);
+  setButtonDisabled(elements.linuxLinkButton, !hasPlanet);
+  setButtonDisabled(elements.macosLinkButton, !hasPlanet);
+  updateDeliveryControls();
 }
 
 function renderController() {
@@ -462,6 +507,14 @@ function renderControllerError(message) {
   elements.networkListCount.textContent = '0';
   elements.networkList.innerHTML = `<div class="empty-inline danger-text">${escapeHtml(message)}</div>`;
   elements.deliveryNetwork.innerHTML = '<option value="">Controller unavailable</option>';
+  elements.deliveryNetwork.disabled = true;
+  elements.includeNetworkId.checked = false;
+  elements.includeNetworkId.disabled = true;
+  resetDeliveryCommands();
+  updateDeliveryControls();
+  elements.deliveryReadinessNote.textContent = state.overview?.hasPlanet
+    ? 'Controller is unavailable. Installers can still replace the planet file, but automatic network selection is unavailable.'
+    : 'Controller is unavailable and the planet file is not ready.';
   elements.networkEmpty.hidden = false;
   elements.networkDetail.hidden = true;
   elements.networkEmptyTitle.textContent = 'Controller unavailable';
@@ -483,7 +536,8 @@ function renderNetworkList() {
   const networks = filteredNetworks();
   elements.networkListCount.textContent = String(networks.length);
   if (!networks.length) {
-    elements.networkList.innerHTML = '<div class="empty-inline">No matching networks.</div>';
+    const message = state.networks.length ? 'No networks match your search.' : 'No networks yet. Create one to start managing members and routes.';
+    elements.networkList.innerHTML = `<div class="empty-inline">${escapeHtml(message)}</div>`;
     return;
   }
 
@@ -505,18 +559,32 @@ function renderNetworkList() {
 }
 
 function renderDeliveryNetworks() {
+  const previousValue = elements.deliveryNetwork.value;
   if (!state.networks.length) {
     elements.deliveryNetwork.innerHTML = '<option value="">No networks</option>';
     elements.deliveryNetwork.disabled = true;
+    elements.includeNetworkId.checked = false;
+    elements.includeNetworkId.disabled = true;
+    if (previousValue) {
+      resetInstallerCommands();
+    }
+    updateDeliveryControls();
     return;
   }
   elements.deliveryNetwork.disabled = false;
+  elements.includeNetworkId.disabled = false;
   elements.deliveryNetwork.innerHTML = state.networks.map((network) => (
     `<option value="${escapeAttr(network.nwid)}">${escapeHtml(network.name || network.nwid)} (${escapeHtml(network.nwid)})</option>`
   )).join('');
-  if (state.selectedNetworkId) {
+  if (state.selectedNetworkId && state.networks.some((network) => network.nwid === state.selectedNetworkId)) {
     elements.deliveryNetwork.value = state.selectedNetworkId;
+  } else {
+    elements.deliveryNetwork.value = state.networks[0].nwid;
   }
+  if (previousValue && previousValue !== elements.deliveryNetwork.value) {
+    resetInstallerCommands();
+  }
+  updateDeliveryControls();
 }
 
 async function loadNetwork(nwid, options = {}) {
@@ -539,8 +607,10 @@ function renderSelectedNetwork() {
   if (!bundle || !bundle.network) {
     elements.networkEmpty.hidden = false;
     elements.networkDetail.hidden = true;
-    elements.networkEmptyTitle.textContent = 'No network selected';
-    elements.networkEmptyMessage.textContent = 'Select a network or create one to manage members, routes, DNS, and address allocation.';
+    elements.networkEmptyTitle.textContent = state.networks.length ? 'No network selected' : 'No networks yet';
+    elements.networkEmptyMessage.textContent = state.networks.length
+      ? 'Select a network to manage members, routes, DNS, and address allocation.'
+      : 'Create a network to start managing members, routes, DNS, and address allocation.';
     return;
   }
 
@@ -577,6 +647,7 @@ function syncNetworkForms(network) {
   elements.easyPoolStart.value = pool?.ipRangeStart || defaults.poolStart;
   elements.easyPoolEnd.value = pool?.ipRangeEnd || defaults.poolEnd;
   state.easyPoolTouched = false;
+  updateEasyPoolPreview();
   $('routeTarget').value = '';
   $('routeVia').value = '';
   $('poolStart').value = '';
@@ -590,7 +661,7 @@ function renderMembers(members) {
   if (!members.length) {
     elements.membersTable.innerHTML = `
       <tr>
-        <td colspan="7"><div class="empty-inline">No members have joined this network yet.</div></td>
+        <td class="members-empty-cell" colspan="7"><div class="empty-inline">No members have joined this network yet.</div></td>
       </tr>
     `;
     return;
@@ -601,23 +672,25 @@ function renderMembers(members) {
     const ips = Array.isArray(member.ipAssignments) ? member.ipAssignments : [];
     return `
       <tr data-member-id="${escapeHtml(id)}">
-        <td><input class="table-input member-name-input" value="${escapeAttr(member.name || '')}" placeholder="Friendly name" aria-label="Member name"></td>
-        <td><span class="mono">${escapeHtml(id)}</span></td>
-        <td>${renderPeerState(member)}</td>
-        <td><input class="member-authorized-input" type="checkbox" ${member.authorized ? 'checked' : ''} aria-label="Authorized"></td>
-        <td><input class="member-bridge-input" type="checkbox" ${member.activeBridge ? 'checked' : ''} aria-label="Active bridge"></td>
-        <td>
+        <td data-label="Name"><input class="table-input member-name-input" value="${escapeAttr(member.name || '')}" placeholder="Friendly name" aria-label="Member name"></td>
+        <td data-label="Member ID"><span class="mono member-id">${escapeHtml(id)}</span></td>
+        <td data-label="State">${renderPeerState(member)}</td>
+        <td data-label="Authorized"><input class="member-authorized-input" type="checkbox" ${member.authorized ? 'checked' : ''} aria-label="Authorized"></td>
+        <td data-label="Bridge"><input class="member-bridge-input" type="checkbox" ${member.activeBridge ? 'checked' : ''} aria-label="Active bridge"></td>
+        <td data-label="IP assignments">
           <div class="ip-stack">
-            ${ips.map((ip, index) => `
-              <span class="ip-chip">${escapeHtml(ip)}<button data-action="delete-ip" data-index="${index}" type="button" aria-label="Delete IP assignment">x</button></span>
-            `).join('') || '<span class="muted">None</span>'}
+            <div class="ip-chip-list">
+              ${ips.map((ip, index) => `
+                <span class="ip-chip" data-ip="${escapeAttr(ip)}"><span>${escapeHtml(ip)}</span><button data-action="delete-ip" data-index="${index}" data-ip="${escapeAttr(ip)}" type="button" aria-label="Delete IP assignment">x</button></span>
+              `).join('') || '<span class="muted">None</span>'}
+            </div>
             <form class="mini-form member-ip-form">
               <input type="text" placeholder="Add IP">
               <button class="icon-button" type="submit">+</button>
             </form>
           </div>
         </td>
-        <td><button class="button small danger" data-action="delete-member" type="button">Delete</button></td>
+        <td data-label="Actions"><button class="button small danger" data-action="delete-member" type="button">Delete</button></td>
       </tr>
     `;
   }).join('');
@@ -683,6 +756,8 @@ async function createNetwork(event) {
     body: { name },
   }));
   input.value = '';
+  state.networkFilter = '';
+  elements.networkSearch.value = '';
   await fetchController();
   if (payload.network?.nwid) {
     await loadNetwork(payload.network.nwid, { silent: true });
@@ -839,7 +914,7 @@ async function deleteSelectedNetwork() {
   if (!window.confirm(`Delete network ${networkName}?`)) {
     return;
   }
-  await requestJson(`/api/controller/networks/${encodeURIComponent(state.selectedNetworkId)}`, { method: 'DELETE' });
+  await withButtonPending($('deleteNetworkButton'), 'Deleting...', () => requestJson(`/api/controller/networks/${encodeURIComponent(state.selectedNetworkId)}`, { method: 'DELETE' }));
   state.selectedNetworkId = '';
   localStorage.removeItem('ztp_selected_network');
   await fetchController();
@@ -862,10 +937,21 @@ async function handleMemberInput(event) {
   } else {
     return;
   }
-  await requestJson(`/api/controller/networks/${encodeURIComponent(state.selectedNetworkId)}/members/${encodeURIComponent(memberId)}`, {
+  const payload = await requestJson(`/api/controller/networks/${encodeURIComponent(state.selectedNetworkId)}/members/${encodeURIComponent(memberId)}`, {
     method: 'PATCH',
     body,
+  }).catch(async (error) => {
+    await loadNetwork(state.selectedNetworkId, { silent: true }).catch(() => {});
+    throw error;
   });
+  if (payload.member && Array.isArray(state.selectedBundle?.members)) {
+    state.selectedBundle.members = state.selectedBundle.members.map((member) => (
+      (member.id || member.address) === memberId
+        ? { ...member, ...payload.member, peer: member.peer, peerState: member.peerState }
+        : member
+    ));
+    renderMembers(state.selectedBundle.members);
+  }
   toast('Member updated.');
 }
 
@@ -884,16 +970,20 @@ async function handleMembersClick(event) {
     if (!window.confirm(`Delete member ${memberId}?`)) {
       return;
     }
-    await requestJson(`/api/controller/networks/${encodeURIComponent(state.selectedNetworkId)}/members/${encodeURIComponent(memberId)}`, {
+    await withButtonPending(button, 'Deleting...', () => requestJson(`/api/controller/networks/${encodeURIComponent(state.selectedNetworkId)}/members/${encodeURIComponent(memberId)}`, {
       method: 'DELETE',
-    });
+    }));
     await loadNetwork(state.selectedNetworkId, { silent: true });
     toast('Member deleted.');
   }
   if (action === 'delete-ip') {
-    state.selectedBundle = await requestJson(`/api/controller/networks/${encodeURIComponent(state.selectedNetworkId)}/members/${encodeURIComponent(memberId)}/ip-assignments?index=${encodeURIComponent(button.dataset.index)}`, {
+    const ipAddress = button.dataset.ip || button.closest('.ip-chip')?.dataset.ip || 'this IP assignment';
+    if (!window.confirm(`Remove IP assignment ${ipAddress}?`)) {
+      return;
+    }
+    state.selectedBundle = await withButtonPending(button, '...', () => requestJson(`/api/controller/networks/${encodeURIComponent(state.selectedNetworkId)}/members/${encodeURIComponent(memberId)}/ip-assignments?index=${encodeURIComponent(button.dataset.index)}`, {
       method: 'DELETE',
-    });
+    }));
     renderSelectedNetwork();
     toast('IP assignment removed.');
   }
@@ -907,31 +997,63 @@ async function handleMemberIpSubmit(event) {
   event.preventDefault();
   const row = form.closest('tr[data-member-id]');
   const input = form.querySelector('input');
+  const submitButton = form.querySelector('button[type="submit"]');
   const ipAddress = input.value.trim();
   if (!ipAddress) {
+    toast('Enter an IP address.');
+    input.focus();
     return;
   }
-  state.selectedBundle = await requestJson(`/api/controller/networks/${encodeURIComponent(state.selectedNetworkId)}/members/${encodeURIComponent(row.dataset.memberId)}/ip-assignments`, {
+  if (!isLikelyIpAddress(ipAddress)) {
+    toast('Enter a valid IPv4 or IPv6 address.');
+    input.focus();
+    return;
+  }
+  const existing = Array.from(row.querySelectorAll('.ip-chip'))
+    .map((chip) => chip.dataset.ip || chip.textContent?.trim())
+    .filter(Boolean);
+  if (existing.includes(ipAddress)) {
+    toast('IP assignment already exists.');
+    input.focus();
+    return;
+  }
+  state.selectedBundle = await withButtonPending(submitButton, submitButton?.textContent || '+', () => requestJson(`/api/controller/networks/${encodeURIComponent(state.selectedNetworkId)}/members/${encodeURIComponent(row.dataset.memberId)}/ip-assignments`, {
     method: 'POST',
     body: { ipAddress },
-  });
+  }));
   renderSelectedNetwork();
   toast('IP assignment added.');
 }
 
-async function removeRoute(target) {
-  state.selectedBundle = await requestJson(`/api/controller/networks/${encodeURIComponent(state.selectedNetworkId)}/routes?target=${encodeURIComponent(target)}`, { method: 'DELETE' });
-  await loadNetwork(state.selectedNetworkId, { silent: true });
+async function removeRoute(target, button) {
+  if (!window.confirm(`Remove route ${target}?`)) {
+    return;
+  }
+  await withButtonPending(button, 'Removing...', async () => {
+    state.selectedBundle = await requestJson(`/api/controller/networks/${encodeURIComponent(state.selectedNetworkId)}/routes?target=${encodeURIComponent(target)}`, { method: 'DELETE' });
+    await loadNetwork(state.selectedNetworkId, { silent: true });
+  });
   toast('Route removed.');
 }
 
-async function removePool(start, end) {
-  state.selectedBundle = await requestJson(`/api/controller/networks/${encodeURIComponent(state.selectedNetworkId)}/ip-pools?start=${encodeURIComponent(start)}&end=${encodeURIComponent(end)}`, { method: 'DELETE' });
-  await loadNetwork(state.selectedNetworkId, { silent: true });
+async function removePool(start, end, button) {
+  if (!window.confirm(`Remove assignment pool ${start} - ${end}?`)) {
+    return;
+  }
+  await withButtonPending(button, 'Removing...', async () => {
+    state.selectedBundle = await requestJson(`/api/controller/networks/${encodeURIComponent(state.selectedNetworkId)}/ip-pools?start=${encodeURIComponent(start)}&end=${encodeURIComponent(end)}`, { method: 'DELETE' });
+    await loadNetwork(state.selectedNetworkId, { silent: true });
+  });
   toast('Assignment pool removed.');
 }
 
 async function createLink(type, file) {
+  if (file === 'planet' && !state.overview?.hasPlanet) {
+    throw new Error('Planet file is not ready yet.');
+  }
+  if (type === 'install' && !state.overview?.hasPlanet) {
+    throw new Error('Planet file is required before generating installers.');
+  }
   const ttl = elements.ttl.value || '600';
   const params = new URLSearchParams({ type, file, ttl });
   return (await requestJson(`/api/link?${params.toString()}`)).url;
@@ -949,16 +1071,53 @@ function resetDeliveryCommands() {
   elements.wgetCommand.textContent = 'Generate a link first.';
   elements.linuxCommand.textContent = 'Generate an installer first.';
   elements.macosCommand.textContent = 'Generate an installer first.';
+  updateDeliveryControls({ preserveCommands: true });
+}
+
+function resetInstallerCommands() {
+  elements.linuxCommand.textContent = 'Generate an installer first.';
+  elements.macosCommand.textContent = 'Generate an installer first.';
+  updateDeliveryControls({ preserveCommands: true });
+}
+
+function updateDeliveryControls(options = {}) {
+  const hasPlanet = Boolean(state.overview?.hasPlanet);
+  const hasNetworks = state.networks.length > 0;
+  setButtonDisabled(elements.planetLinkButton, !hasPlanet);
+  setButtonDisabled(elements.linuxLinkButton, !hasPlanet);
+  setButtonDisabled(elements.macosLinkButton, !hasPlanet);
+
+  if (!hasNetworks) {
+    elements.includeNetworkId.checked = false;
+    elements.includeNetworkId.disabled = true;
+  } else {
+    elements.includeNetworkId.disabled = false;
+  }
+
+  if (!hasPlanet) {
+    elements.wgetCommand.textContent = 'Planet file is not ready yet.';
+    elements.linuxCommand.textContent = 'Planet file is required before generating installers.';
+    elements.macosCommand.textContent = 'Planet file is required before generating installers.';
+    elements.deliveryReadinessNote.textContent = 'Generate the planet file during container startup before distributing client commands.';
+    return;
+  }
+
+  if (!hasNetworks) {
+    elements.deliveryReadinessNote.textContent = 'Planet is ready. Create a network to prefill installer commands, or generate installers that prompt for a Network ID.';
+    return;
+  }
+
+  elements.deliveryReadinessNote.textContent = 'Planet is ready. Select a network and choose whether installers should join it automatically.';
 }
 
 async function generatePlanetCommand() {
-  const link = await createLink('download', 'planet');
+  const link = await withButtonPending(elements.planetLinkButton, 'Generating...', () => createLink('download', 'planet'));
   elements.wgetCommand.textContent = `wget -O planet ${commandQuote(link)}`;
   toast('Temporary planet command generated.');
 }
 
 async function generateLinuxCommand() {
-  const link = await createLink('install', 'linux.sh');
+  const link = await withButtonPending(elements.linuxLinkButton, 'Generating...', () => createLink('install', 'linux.sh'));
   const networkId = selectedDeliveryNetworkId();
   const runner = networkId ? `sudo env NETWORK_ID=${networkId} bash` : 'sudo bash';
   elements.linuxCommand.textContent = `curl -fsSL ${commandQuote(link)} | ${runner}`;
@@ -966,7 +1125,7 @@ async function generateLinuxCommand() {
 }
 
 async function generateMacosCommand() {
-  const link = await createLink('install', 'macos.sh');
+  const link = await withButtonPending(elements.macosLinkButton, 'Generating...', () => createLink('install', 'macos.sh'));
   const networkId = selectedDeliveryNetworkId();
   const runner = networkId ? `NETWORK_ID=${networkId} bash` : 'bash';
   elements.macosCommand.textContent = `curl -fsSL ${commandQuote(link)} | ${runner}`;
@@ -976,7 +1135,7 @@ async function generateMacosCommand() {
 async function copyFrom(targetId) {
   const target = $(targetId);
   const text = target.textContent.trim();
-  if (!text || text.includes('Generate')) {
+  if (!text || /Generate|not ready|required/.test(text)) {
     toast('Generate a command first.');
     return;
   }
@@ -998,6 +1157,12 @@ async function copyFrom(targetId) {
 
 function setPage(pageName, options = {}) {
   const normalized = pageMeta[pageName] ? pageName : 'overview';
+  const settingsVisibilityChanged = state.activePage === 'settings'
+    ? normalized !== 'settings'
+    : normalized === 'settings';
+  if (settingsVisibilityChanged) {
+    clearPasswordFields();
+  }
   if (state.activePage !== normalized && state.selectedBundle?.network) {
     syncNetworkForms(state.selectedBundle.network);
   }
@@ -1052,12 +1217,53 @@ function formatBytes(value) {
   return `${(bytes / 1024 / 1024).toFixed(1)} MB`;
 }
 
+function isLikelyIpAddress(value) {
+  const normalized = String(value || '').trim();
+  if (parseIpv4(normalized) !== null) {
+    return true;
+  }
+  if (!normalized.includes(':')) {
+    return false;
+  }
+  try {
+    new URL(`http://[${normalized}]/`);
+    return true;
+  } catch (error) {
+    return false;
+  }
+}
+
+function updateEasyPoolPreview() {
+  if (!elements.easyPoolPreview) {
+    return;
+  }
+  const defaults = defaultPoolForCidr(elements.easyCidr.value.trim());
+  if (!defaults) {
+    elements.easyPoolPreview.textContent = 'Enter a valid IPv4 CIDR to calculate the default pool.';
+    elements.easyPoolPreview.classList.add('warn-text');
+    return;
+  }
+  elements.easyPoolPreview.classList.remove('warn-text');
+  const poolStart = elements.easyPoolStart.value.trim() || defaults.poolStart;
+  const poolEnd = elements.easyPoolEnd.value.trim() || defaults.poolEnd;
+  const poolError = poolRangeError(defaults.cidr, poolStart, poolEnd);
+  if (poolError) {
+    elements.easyPoolPreview.textContent = poolError;
+    elements.easyPoolPreview.classList.add('warn-text');
+    return;
+  }
+  const custom = poolStart !== defaults.poolStart || poolEnd !== defaults.poolEnd;
+  elements.easyPoolPreview.textContent = custom
+    ? `Custom pool will use ${poolStart} - ${poolEnd}.`
+    : `Default pool will use ${defaults.poolStart} - ${defaults.poolEnd}.`;
+}
+
 function bindEvents() {
   elements.loginForm.addEventListener('submit', (event) => login(event).catch((error) => toast(error.message)));
   elements.firstPasswordForm.addEventListener('submit', (event) => submitFirstPassword(event).catch((error) => toast(error.message)));
   $('resetPasswordForm').addEventListener('submit', (event) => submitResetPassword(event).catch((error) => toast(error.message)));
   $('logoutButton').addEventListener('click', () => logout());
-  $('refreshAllButton').addEventListener('click', () => refreshAll().catch((error) => toast(error.message)));
+  $('refreshAllButton').addEventListener('click', () => refreshAllWithFeedback().catch((error) => toast(error.message)));
   $('createNetworkForm').addEventListener('submit', (event) => createNetwork(event).catch((error) => toast(error.message)));
   $('networkBasicsForm').addEventListener('submit', (event) => submitBasics(event).catch((error) => toast(error.message)));
   $('assignModeForm').addEventListener('submit', (event) => submitAssignModes(event).catch((error) => toast(error.message)));
@@ -1066,11 +1272,12 @@ function bindEvents() {
   $('routeForm').addEventListener('submit', (event) => submitRoute(event).catch((error) => toast(error.message)));
   $('poolForm').addEventListener('submit', (event) => submitPool(event).catch((error) => toast(error.message)));
   $('deleteNetworkButton').addEventListener('click', () => deleteSelectedNetwork().catch((error) => toast(error.message)));
-  $('refreshNetworkButton').addEventListener('click', () => loadNetwork(state.selectedNetworkId).catch((error) => toast(error.message)));
+  $('refreshNetworkButton').addEventListener('click', () => refreshSelectedNetworkWithFeedback().catch((error) => toast(error.message)));
 
   elements.easyCidr.addEventListener('input', () => {
     const defaults = defaultPoolForCidr(elements.easyCidr.value.trim());
     if (!defaults) {
+      updateEasyPoolPreview();
       return;
     }
     if (!state.easyPoolTouched) {
@@ -1080,10 +1287,12 @@ function bindEvents() {
     $('routeTarget').placeholder = defaults.cidr;
     $('poolStart').placeholder = defaults.poolStart;
     $('poolEnd').placeholder = defaults.poolEnd;
+    updateEasyPoolPreview();
   });
   [elements.easyPoolStart, elements.easyPoolEnd].forEach((input) => {
     input.addEventListener('input', () => {
       state.easyPoolTouched = true;
+      updateEasyPoolPreview();
     });
   });
 
@@ -1105,13 +1314,13 @@ function bindEvents() {
   elements.routesList.addEventListener('click', (event) => {
     const button = event.target.closest('[data-route-target]');
     if (button) {
-      removeRoute(button.dataset.routeTarget).catch((error) => toast(error.message));
+      removeRoute(button.dataset.routeTarget, button).catch((error) => toast(error.message));
     }
   });
   elements.poolsList.addEventListener('click', (event) => {
     const button = event.target.closest('[data-pool-start]');
     if (button) {
-      removePool(button.dataset.poolStart, button.dataset.poolEnd).catch((error) => toast(error.message));
+      removePool(button.dataset.poolStart, button.dataset.poolEnd, button).catch((error) => toast(error.message));
     }
   });
 
@@ -1130,8 +1339,8 @@ function bindEvents() {
   $('linuxLinkButton').addEventListener('click', () => generateLinuxCommand().catch((error) => toast(error.message)));
   $('macosLinkButton').addEventListener('click', () => generateMacosCommand().catch((error) => toast(error.message)));
   elements.ttl.addEventListener('change', resetDeliveryCommands);
-  elements.deliveryNetwork.addEventListener('change', resetDeliveryCommands);
-  elements.includeNetworkId.addEventListener('change', resetDeliveryCommands);
+  elements.deliveryNetwork.addEventListener('change', resetInstallerCommands);
+  elements.includeNetworkId.addEventListener('change', resetInstallerCommands);
   document.querySelectorAll('[data-copy-target]').forEach((button) => {
     button.addEventListener('click', () => copyFrom(button.dataset.copyTarget).catch((error) => toast(error.message)));
   });

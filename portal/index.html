@@ -228,7 +228,7 @@
                       <button class="button" id="refreshNetworkButton" type="button">Refresh</button>
                     </div>
                     <div class="table-wrap">
-                      <table class="data-table">
+                      <table class="data-table members-table">
                         <thead>
                           <tr>
                             <th>Name</th>
@@ -285,7 +285,7 @@
                           <input id="easyPoolEnd" type="text" placeholder="10.147.17.250">
                         </label>
                       </div>
-                      <p class="form-note">Pool start and end are calculated automatically from the CIDR when left unchanged.</p>
+                      <p class="form-note" id="easyPoolPreview">Pool start and end are calculated automatically from the CIDR when left unchanged.</p>
                       <button class="button primary" type="submit">Apply easy setup</button>
                     </form>
 
@@ -409,6 +409,7 @@
                 <span><strong>Include Network ID</strong><small>Generate non-interactive join commands.</small></span>
                 <input id="includeNetworkId" type="checkbox">
               </label>
+              <p class="form-note" id="deliveryReadinessNote">Planet file readiness is checked after sign-in.</p>
             </div>
 
             <article class="command-card">
