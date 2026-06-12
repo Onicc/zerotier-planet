@@ -4,27 +4,46 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>ZeroTier Planet Console</title>
+    <link rel="icon" href="/assets/logo.svg" type="image/svg+xml">
     <link rel="stylesheet" href="/styles.css">
   </head>
   <body>
     <div class="auth-shell" id="authShell">
-      <section class="auth-visual" aria-hidden="true">
-        <div class="orbital-card">
-          <div class="mesh-visual">
-            <span></span><span></span><span></span><span></span><span></span>
+      <section class="auth-visual" aria-label="ZeroTier Planet product overview">
+        <div class="auth-showcase">
+          <canvas class="orbital-star-canvas" id="orbitalStarCanvas" aria-hidden="true"></canvas>
+          <div class="stellar-network" aria-hidden="true"></div>
+          <div class="showcase-brand">
+            <span class="brand-mark logo-mark" aria-hidden="true">
+              <img src="/assets/logo.svg" alt="">
+            </span>
+            <span>ZeroTier Planet Console</span>
           </div>
-          <div class="signal-lines">
-            <i></i><i></i><i></i><i></i>
+          <div class="showcase-copy">
+            <p class="eyebrow">Private control plane</p>
+            <h1>Private ZeroTier control plane.</h1>
+            <p>Manage networks, members, planet delivery, and onboarding from one self-hosted console.</p>
+          </div>
+          <div class="trust-row">
+            <span>Self-hosted</span>
+            <span>Planet delivery</span>
+            <span>Member authorization</span>
           </div>
         </div>
       </section>
 
       <main class="auth-panel">
         <div class="auth-brand">
-          <span class="brand-mark">ZP</span>
+          <span class="brand-mark logo-mark" aria-hidden="true">
+            <img src="/assets/logo.svg" alt="">
+          </span>
           <div>
-            <strong>ZeroTier Planet</strong>
+            <strong>ZeroTier Planet Console</strong>
             <small>Private network control plane</small>
+          </div>
+          <div class="language-switcher auth-language" role="group" aria-label="Language">
+            <button type="button" data-lang="en">EN</button>
+            <button type="button" data-lang="zh-CN">中文</button>
           </div>
         </div>
 
@@ -45,7 +64,7 @@
 
         <form class="auth-card" id="firstPasswordForm">
           <p class="eyebrow">First sign-in</p>
-          <h1>Set a new password</h1>
+          <h1>Set administrator password</h1>
           <p class="muted">Use at least 8 characters with letters and numbers. Existing sessions are replaced after the password changes.</p>
           <label class="field">
             <span>Current password</span>
@@ -68,7 +87,9 @@
       <aside class="sidebar">
         <div class="sidebar-top">
           <a class="brand" href="#overview" aria-label="ZeroTier Planet Console">
-            <span class="brand-mark">ZP</span>
+            <span class="brand-mark logo-mark" aria-hidden="true">
+              <img src="/assets/logo.svg" alt="">
+            </span>
             <span class="brand-copy">
               <strong>ZeroTier Planet</strong>
               <small>Control plane</small>
@@ -79,13 +100,41 @@
           </button>
         </div>
         <nav class="side-nav" aria-label="Primary">
-          <a href="#overview" data-nav="overview" title="Overview"><span class="nav-icon">O</span><span class="nav-label">Overview</span></a>
-          <a href="#networks" data-nav="networks" title="Networks"><span class="nav-icon">N</span><span class="nav-label">Networks</span></a>
-          <a href="#delivery" data-nav="delivery" title="Client delivery"><span class="nav-icon">D</span><span class="nav-label">Client delivery</span></a>
-          <a href="#guide" data-nav="guide" title="Guide"><span class="nav-icon">G</span><span class="nav-label">Guide</span></a>
-          <a href="#settings" data-nav="settings" title="Settings"><span class="nav-icon">S</span><span class="nav-label">Settings</span></a>
+          <a href="#overview" data-nav="overview" title="Overview">
+            <span class="nav-icon" aria-hidden="true">
+              <svg viewBox="0 0 24 24"><path d="M4 13h6V4H4v9Z"></path><path d="M14 20h6V4h-6v16Z"></path><path d="M4 20h6v-3H4v3Z"></path></svg>
+            </span>
+            <span class="nav-label">Overview</span>
+          </a>
+          <a href="#networks" data-nav="networks" title="Networks">
+            <span class="nav-icon" aria-hidden="true">
+              <svg viewBox="0 0 24 24"><circle cx="6" cy="12" r="2.5"></circle><circle cx="18" cy="6" r="2.5"></circle><circle cx="18" cy="18" r="2.5"></circle><path d="m8.2 10.8 7.6-3.6"></path><path d="m8.2 13.2 7.6 3.6"></path></svg>
+            </span>
+            <span class="nav-label">Networks</span>
+          </a>
+          <a href="#delivery" data-nav="delivery" title="Client delivery">
+            <span class="nav-icon" aria-hidden="true">
+              <svg viewBox="0 0 24 24"><path d="M12 3v12"></path><path d="m7 10 5 5 5-5"></path><path d="M5 21h14"></path></svg>
+            </span>
+            <span class="nav-label">Client delivery</span>
+          </a>
+          <a href="#guide" data-nav="guide" title="Guide">
+            <span class="nav-icon" aria-hidden="true">
+              <svg viewBox="0 0 24 24"><path d="M5 4h10a4 4 0 0 1 4 4v12H9a4 4 0 0 0-4-4V4Z"></path><path d="M9 8h6"></path><path d="M9 12h4"></path></svg>
+            </span>
+            <span class="nav-label">Guide</span>
+          </a>
+          <a href="#settings" data-nav="settings" title="Settings">
+            <span class="nav-icon" aria-hidden="true">
+              <svg viewBox="0 0 24 24"><path d="M12 15.5a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7Z"></path><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.9l.1.1-2 3.4-.2-.1a1.8 1.8 0 0 0-2.1.2 1.7 1.7 0 0 0-.8 1.6V22H10v-.2a1.7 1.7 0 0 0-.9-1.5 1.8 1.8 0 0 0-2.1-.2l-.2.1-2-3.4.1-.1A1.7 1.7 0 0 0 5.2 15 1.7 1.7 0 0 0 3.8 14H3v-4h.8a1.7 1.7 0 0 0 1.4-1 1.7 1.7 0 0 0-.3-1.9l-.1-.1 2-3.4.2.1a1.8 1.8 0 0 0 2.1-.2A1.7 1.7 0 0 0 10 2h4.7v.2a1.7 1.7 0 0 0 .8 1.6 1.8 1.8 0 0 0 2.1.2l.2-.1 2 3.4-.1.1a1.7 1.7 0 0 0-.3 1.9 1.7 1.7 0 0 0 1.4 1h.2v4h-.2a1.7 1.7 0 0 0-1.4.7Z"></path></svg>
+            </span>
+            <span class="nav-label">Settings</span>
+          </a>
         </nav>
         <div class="sidebar-status">
+          <span class="sidebar-status-icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24"><path d="M12 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8Z"></path><path d="M4 21a8 8 0 0 1 16 0"></path></svg>
+          </span>
           <span class="label">Signed in as</span>
           <strong id="signedInUser">admin</strong>
           <small id="sessionState">Session active</small>
@@ -99,30 +148,41 @@
             <h1 id="pageTitle">Overview</h1>
           </div>
           <div class="top-actions">
-            <button class="button" id="refreshAllButton" type="button">Refresh</button>
-            <button class="button ghost" id="logoutButton" type="button">Sign out</button>
+            <div class="language-switcher" role="group" aria-label="Language">
+              <button type="button" data-lang="en">EN</button>
+              <button type="button" data-lang="zh-CN">中文</button>
+            </div>
+            <button class="button iconable" id="refreshAllButton" type="button">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 12a8 8 0 1 1-2.3-5.7"></path><path d="M20 4v5h-5"></path></svg>
+              <span>Refresh</span>
+            </button>
+            <button class="button ghost iconable" id="logoutButton" type="button">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M10 5H6a2 2 0 0 0-2 2v10a2 2 0 0 0 2 2h4"></path><path d="M14 16l4-4-4-4"></path><path d="M18 12H9"></path></svg>
+              <span>Sign out</span>
+            </button>
           </div>
         </header>
 
         <section class="page active" data-page="overview">
-          <div class="hero-panel">
+          <div class="overview-command">
             <div>
-              <p class="eyebrow">Deployment health</p>
-              <h2>Planet readiness, controller state, and client delivery status.</h2>
-              <p class="muted">Operational telemetry is available after sign-in only.</p>
+              <p class="eyebrow">Control plane</p>
+              <h2>Monitor controller health, planet delivery, and network readiness.</h2>
+              <p class="muted">Review operational status, resolve pending members, and open the next workflow from this dashboard.</p>
             </div>
-            <div class="hero-mesh" aria-hidden="true">
-              <span></span><span></span><span></span><span></span>
+            <div class="hero-actions">
+              <button class="button primary" data-nav="delivery" type="button">Open delivery</button>
+              <button class="button" data-nav="networks" type="button">Open networks</button>
             </div>
           </div>
 
           <div class="metrics" aria-live="polite">
             <div>
-              <span class="label">Planet</span>
+              <span class="label">Planet file</span>
               <strong id="planetState">--</strong>
             </div>
             <div>
-              <span class="label">Controller</span>
+              <span class="label">Controller API</span>
               <strong id="controllerStatus">--</strong>
             </div>
             <div>
@@ -130,9 +190,82 @@
               <strong id="networkCount">--</strong>
             </div>
             <div>
-              <span class="label">ZeroTier address</span>
-              <strong id="ztAddress">--</strong>
+              <span class="label">Members</span>
+              <strong id="overviewMemberCount">--</strong>
             </div>
+          </div>
+
+          <div class="overview-health-strip">
+            <article class="panel overview-status-card">
+              <div class="status-card-heading">
+                <span class="status-ring" aria-hidden="true"></span>
+                <div>
+                  <p class="eyebrow">Deployment path</p>
+                  <strong>Controller endpoint</strong>
+                  <small id="overviewEndpoint">Waiting for status</small>
+                </div>
+              </div>
+              <div class="status-flow" aria-hidden="true">
+                <div class="flow-step" id="flowPlanetStep">
+                  <span class="flow-node" id="flowPlanetNode"></span>
+                  <span><strong>Planet</strong><small id="flowPlanetText">Checking artifact</small></span>
+                </div>
+                <div class="flow-step" id="flowControllerStep">
+                  <span class="flow-node" id="flowControllerNode"></span>
+                  <span><strong>Controller</strong><small id="flowControllerText">Checking API</small></span>
+                </div>
+                <div class="flow-step" id="flowNetworkStep">
+                  <span class="flow-node" id="flowNetworkNode"></span>
+                  <span><strong>Networks</strong><small id="flowNetworkText">Checking targets</small></span>
+                </div>
+              </div>
+              <dl class="status-mini-list">
+                <div><dt>Planet file</dt><dd id="overviewPlanetDetail">--</dd></div>
+                <div><dt>Networks</dt><dd id="overviewNetworksDetail">--</dd></div>
+                <div><dt>ZeroTier address</dt><dd id="ztAddress">--</dd></div>
+              </dl>
+            </article>
+            <article class="panel quick-actions-panel">
+              <div class="panel-heading">
+                <div>
+                  <p class="eyebrow">Quick actions</p>
+                  <h3>Next operator steps</h3>
+                </div>
+              </div>
+              <div class="quick-action-list compact-actions">
+                <button data-nav="networks" type="button"><span>Create or tune networks</span><small>Routes, DNS, pools, and members</small></button>
+                <button data-nav="delivery" type="button"><span>Generate installers</span><small>wget, Linux, and macOS rollout</small></button>
+                <button data-nav="guide" type="button"><span>Open client guide</span><small>Operator workflow and onboarding</small></button>
+              </div>
+            </article>
+          </div>
+
+          <div class="overview-activity">
+            <article class="panel activity-panel">
+              <div class="panel-heading">
+                <div>
+                  <p class="eyebrow">Network activity</p>
+                  <h3>Managed estate</h3>
+                </div>
+                <span class="pill good" id="activityHealthPill">Live data</span>
+              </div>
+              <div class="activity-grid">
+                <div><span class="label">Authorized members</span><strong id="authorizedMemberCount">--</strong></div>
+                <div><span class="label">Pending members</span><strong id="pendingMemberCount">--</strong></div>
+                <div><span class="label">Routes</span><strong id="routeCount">--</strong></div>
+                <div><span class="label">Assignment pools</span><strong id="poolCount">--</strong></div>
+              </div>
+            </article>
+            <article class="panel operator-note-panel">
+              <div class="panel-heading">
+                <div>
+                  <p class="eyebrow">Access</p>
+                  <h3>Console security</h3>
+                </div>
+                <button class="button small" data-nav="settings" type="button">Reset password</button>
+              </div>
+              <p class="muted">Use Settings to rotate the console password after deployment changes or operator handoff.</p>
+            </article>
           </div>
 
           <div class="overview-grid">
@@ -168,6 +301,33 @@
               <div class="file-list" id="fileList"></div>
             </div>
           </div>
+
+          <div class="overview-bottom-grid">
+            <article class="panel">
+              <div class="panel-heading">
+                <div>
+                  <p class="eyebrow">Recent networks</p>
+                  <h3>Controller inventory</h3>
+                </div>
+                <button class="button small" data-nav="networks" type="button">Manage</button>
+              </div>
+              <div class="recent-network-list" id="recentNetworkList"></div>
+            </article>
+            <article class="panel client-readiness-panel">
+              <div class="panel-heading">
+                <div>
+                  <p class="eyebrow">Client delivery</p>
+                  <h3>Rollout readiness</h3>
+                </div>
+                <button class="button small" data-nav="delivery" type="button">Generate links</button>
+              </div>
+              <div class="readiness-steps">
+                <div><span class="step-dot" id="planetStepDot"></span><strong>Planet file</strong><small id="planetStepText">Checking</small></div>
+                <div><span class="step-dot" id="controllerStepDot"></span><strong>Controller API</strong><small id="controllerStepText">Checking</small></div>
+                <div><span class="step-dot" id="networkStepDot"></span><strong>Network target</strong><small id="networkStepText">Checking</small></div>
+              </div>
+            </article>
+          </div>
         </section>
 
         <section class="page" data-page="networks">
@@ -178,7 +338,7 @@
             </div>
             <form class="inline-form" id="createNetworkForm">
               <input id="newNetworkName" type="text" placeholder="New network name" autocomplete="off">
-              <button class="button primary" type="submit">Create network</button>
+              <button class="button primary" type="submit">Create</button>
             </form>
           </div>
 
@@ -209,9 +369,14 @@
                     <h3 id="selectedNetworkName">--</h3>
                     <p id="selectedNetworkId" class="muted mono">--</p>
                   </div>
+                  <div class="network-summary-stats" aria-label="Network summary">
+                    <span><strong id="selectedMemberCount">--</strong><small>Members</small></span>
+                    <span><strong id="selectedRouteCount">--</strong><small>Routes</small></span>
+                    <span><strong id="selectedPoolCount">--</strong><small>Pools</small></span>
+                    <span><strong id="selectedDnsState">--</strong><small>DNS</small></span>
+                  </div>
                   <div class="summary-actions">
                     <span class="pill" id="selectedNetworkPrivacy">--</span>
-                    <button class="button danger" id="deleteNetworkButton" type="button">Delete</button>
                   </div>
                 </div>
 
@@ -242,7 +407,7 @@
                             <th>Authorized</th>
                             <th>Bridge</th>
                             <th>IP assignments</th>
-                            <th>Actions</th>
+                            <th class="icon-column"><span class="sr-only">Delete member</span></th>
                           </tr>
                         </thead>
                         <tbody id="membersTable"></tbody>
@@ -314,6 +479,16 @@
                       </label>
                       <button class="button primary" type="submit">Save assignment modes</button>
                     </form>
+
+                    <div class="panel form-panel danger-zone">
+                      <div class="panel-heading">
+                        <div>
+                          <h3>Danger zone</h3>
+                          <p class="muted">Delete this network only when every client has been migrated or decommissioned.</p>
+                        </div>
+                      </div>
+                      <button class="button danger" id="deleteNetworkButton" type="button">Delete selected network</button>
+                    </div>
                   </div>
                 </div>
 
@@ -391,8 +566,27 @@
           <div class="section-heading">
             <div>
               <p class="eyebrow">Client delivery</p>
-              <h2>Signed links and installers</h2>
+              <h2>Planet files and installers</h2>
+              <p class="muted">Generate temporary download links, platform installers, and join commands for client rollout.</p>
             </div>
+          </div>
+
+          <div class="delivery-readiness-grid">
+            <article class="panel">
+              <span class="label">Planet file</span>
+              <strong id="deliveryPlanetState">--</strong>
+              <small id="deliveryPlanetNote">Checked after sign-in</small>
+            </article>
+            <article class="panel">
+              <span class="label">Selected network</span>
+              <strong id="deliverySelectedNetworkState">--</strong>
+              <small>Used by generated installer scripts</small>
+            </article>
+            <article class="panel">
+              <span class="label">Temporary link TTL</span>
+              <strong id="deliveryTtlState">--</strong>
+              <small>Signed links expire automatically</small>
+            </article>
           </div>
 
           <div class="delivery-grid">
@@ -462,18 +656,24 @@
           <div class="section-heading">
             <div>
               <p class="eyebrow">Guide</p>
-              <h2>Operator workflow</h2>
+              <h2>Operator quick start</h2>
+              <p class="muted">Follow the deployment-to-client workflow and jump directly to the page that performs each action.</p>
             </div>
           </div>
-          <div class="guide-layout">
+          <div class="guide-layout product-guide">
+            <aside class="guide-toc panel" aria-label="Guide sections">
+              <a href="#guide" data-guide-target="guide-step-network">Create network</a>
+              <a href="#guide" data-guide-target="guide-step-delivery">Download planet</a>
+              <a href="#guide" data-guide-target="guide-step-clients">Install clients</a>
+              <a href="#guide" data-guide-target="guide-step-members">Authorize members</a>
+              <a href="#guide" data-guide-target="guide-step-troubleshoot">Troubleshooting</a>
+            </aside>
             <div class="guide-grid">
-              <article><span>1</span><h3>Create a network</h3><p>Use Networks to create one or more virtual networks, then apply Easy setup for the common IPv4 case.</p></article>
-              <article><span>2</span><h3>Distribute installers</h3><p>Use Client delivery to generate temporary Linux or macOS commands. Links expire automatically.</p></article>
-              <article><span>3</span><h3>Authorize members</h3><p>New clients appear in Members. Authorize trusted devices and add clear labels for operations.</p></article>
-              <article><span>4</span><h3>Operate safely</h3><p>Use Settings to change or reset the console password. Back up the persistent data directory regularly.</p></article>
-            </div>
-            <div class="panel guide-diagram-panel">
-              <img src="/assets/zerotier-network.png" alt="ZeroTier planet network topology">
+              <article id="guide-step-network"><span>1</span><h3>Create a network</h3><p>Open Networks, create a private network, then apply Easy setup for the managed IPv4 route.</p><button class="button small" data-nav="networks" type="button">Open networks</button></article>
+              <article id="guide-step-delivery"><span>2</span><h3>Generate delivery links</h3><p>Open Client delivery to create temporary wget, Linux, or macOS commands.</p><button class="button small" data-nav="delivery" type="button">Open delivery</button></article>
+              <article id="guide-step-clients"><span>3</span><h3>Install clients</h3><p>Run the generated script. It installs ZeroTier, replaces the planet file, restarts the service, then joins a network.</p><code class="inline-code">wget ... | sudo bash</code></article>
+              <article id="guide-step-members"><span>4</span><h3>Authorize members</h3><p>New clients appear in Members. Authorize trusted devices and add clear labels for operations.</p><button class="button small" data-nav="networks" type="button">Review members</button></article>
+              <article id="guide-step-troubleshoot"><span>5</span><h3>Troubleshoot rollout</h3><p>Check that the planet file exists, signed links are reachable, and the controller API is responding.</p><button class="button small" data-nav="overview" type="button">Check health</button></article>
             </div>
           </div>
         </section>
@@ -485,7 +685,16 @@
               <h2>Account and session</h2>
             </div>
           </div>
-          <div class="settings-grid single">
+          <div class="settings-grid settings-console">
+            <div class="panel settings-info-panel">
+              <div class="panel-heading"><h3>Instance</h3></div>
+              <dl class="detail-list">
+                <div><dt>Console URL</dt><dd id="settingsPublicUrl">--</dd></div>
+                <div><dt>Controller</dt><dd id="settingsControllerState">--</dd></div>
+                <div><dt>Planet file</dt><dd id="settingsPlanetState">--</dd></div>
+                <div><dt>Session</dt><dd id="settingsSessionState">Active</dd></div>
+              </dl>
+            </div>
             <form class="panel form-panel" id="resetPasswordForm">
               <div class="panel-heading"><h3>Reset password</h3></div>
               <p class="muted">Use this after sign-in to replace the console password and invalidate existing sessions.</p>
@@ -497,7 +706,7 @@
                 <span>Confirm new password</span>
                 <input id="resetConfirmPassword" type="password" autocomplete="new-password">
               </label>
-              <button class="button danger" type="submit">Reset password</button>
+              <button class="button primary" type="submit">Reset password</button>
             </form>
           </div>
         </section>
@@ -506,5 +715,6 @@
 
     <div class="toast" id="toast" role="status" aria-live="polite"></div>
     <script src="/app.js"></script>
+    <script type="module" src="/orbital-auth.js"></script>
   </body>
 </html>
