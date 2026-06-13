@@ -5257,3 +5257,103 @@ body.sidebar-collapsed .sidebar-status small {
   background: var(--blue);
   box-shadow: 0 8px 18px rgba(37, 99, 235, 0.16);
 }
+
+/* Members table wide-screen tuning. Keep the desktop view dense and one-line where possible. */
+@media (min-width: 981px) {
+  .members-table {
+    min-width: 1160px;
+    table-layout: fixed;
+  }
+
+  .members-table th,
+  .members-table td {
+    white-space: nowrap;
+    vertical-align: middle;
+  }
+
+  .members-table th:nth-child(1),
+  .members-table td:nth-child(1) {
+    width: 190px;
+    min-width: 190px;
+  }
+
+  .members-table th:nth-child(2),
+  .members-table td:nth-child(2) {
+    width: 140px;
+    min-width: 140px;
+  }
+
+  .members-table th:nth-child(3),
+  .members-table td:nth-child(3) {
+    width: 132px;
+    min-width: 132px;
+  }
+
+  .members-table th:nth-child(4),
+  .members-table td:nth-child(4) {
+    width: 108px;
+    min-width: 108px;
+  }
+
+  .members-table th:nth-child(5),
+  .members-table td:nth-child(5) {
+    width: 88px;
+    min-width: 88px;
+  }
+
+  .members-table th:nth-child(6),
+  .members-table td:nth-child(6) {
+    min-width: 420px;
+    white-space: normal;
+  }
+
+  .members-table .icon-column,
+  .members-table th:last-child,
+  .members-table td:last-child {
+    width: 54px;
+    min-width: 54px;
+  }
+
+  .members-table .member-id,
+  .members-table .status-dot {
+    overflow-wrap: normal;
+    white-space: nowrap;
+    word-break: normal;
+  }
+
+  .members-table .member-name-input {
+    min-width: 0;
+  }
+
+  .members-table .ip-stack {
+    display: flex;
+    flex-wrap: nowrap;
+    align-items: center;
+    gap: 8px;
+    width: 100%;
+  }
+
+  .members-table .ip-chip-list {
+    display: flex;
+    flex: 1 1 auto;
+    min-width: 0;
+    max-width: 100%;
+    flex-wrap: nowrap;
+    gap: 6px;
+    align-items: center;
+    overflow-x: auto;
+    padding-bottom: 2px;
+    scrollbar-width: thin;
+  }
+
+  .members-table .ip-chip {
+    flex: 0 0 auto;
+    overflow-wrap: normal;
+    white-space: nowrap;
+    word-break: normal;
+  }
+
+  .members-table .mini-form.member-ip-form {
+    flex: 0 0 154px;
+  }
+}
