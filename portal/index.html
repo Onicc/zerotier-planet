@@ -146,6 +146,7 @@
           <div>
             <p class="eyebrow" id="pageKicker">Operations</p>
             <h1 id="pageTitle">Overview</h1>
+            <p class="page-subtitle" id="pageSubtitle">Monitor controller health, planet delivery, and network readiness.</p>
           </div>
           <div class="top-actions">
             <div class="language-switcher" role="group" aria-label="Language">
@@ -167,7 +168,7 @@
           <div class="overview-command">
             <div>
               <p class="eyebrow">Control plane</p>
-              <h2>Monitor controller health, planet delivery, and network readiness.</h2>
+              <strong class="command-title">Live deployment command center</strong>
               <p class="muted">Review operational status, resolve pending members, and open the next workflow from this dashboard.</p>
             </div>
             <div class="hero-actions">
@@ -331,11 +332,8 @@
         </section>
 
         <section class="page" data-page="networks">
-          <div class="section-heading">
-            <div>
-              <p class="eyebrow">Controller</p>
-              <h2>Network operations</h2>
-            </div>
+          <div class="section-toolbar">
+            <p class="eyebrow">Create network</p>
             <form class="inline-form" id="createNetworkForm">
               <input id="newNetworkName" type="text" placeholder="New network name" autocomplete="off">
               <button class="button primary" type="submit">Create</button>
@@ -563,14 +561,6 @@
         </section>
 
         <section class="page" data-page="delivery">
-          <div class="section-heading">
-            <div>
-              <p class="eyebrow">Client delivery</p>
-              <h2>Planet files and installers</h2>
-              <p class="muted">Generate temporary download links, platform installers, and join commands for client rollout.</p>
-            </div>
-          </div>
-
           <div class="delivery-readiness-grid">
             <article class="panel">
               <span class="label">Planet file</span>
@@ -594,15 +584,19 @@
               <div class="panel-heading"><h3>Link policy</h3></div>
               <label class="field">
                 <span>Lifetime</span>
-                <select id="ttl">
-                  <option value="600">10 minutes</option>
-                  <option value="1800">30 minutes</option>
-                  <option value="3600">1 hour</option>
-                </select>
+                <span class="select-control">
+                  <select id="ttl">
+                    <option value="600">10 minutes</option>
+                    <option value="1800">30 minutes</option>
+                    <option value="3600">1 hour</option>
+                  </select>
+                </span>
               </label>
               <label class="field">
                 <span>Network ID for installers</span>
-                <select id="deliveryNetwork"></select>
+                <span class="select-control">
+                  <select id="deliveryNetwork"></select>
+                </span>
               </label>
               <label class="switch-row">
                 <span><strong>Include Network ID</strong><small>Generate non-interactive join commands.</small></span>
@@ -653,13 +647,6 @@
         </section>
 
         <section class="page" data-page="guide">
-          <div class="section-heading">
-            <div>
-              <p class="eyebrow">Guide</p>
-              <h2>Operator quick start</h2>
-              <p class="muted">Follow the deployment-to-client workflow and jump directly to the page that performs each action.</p>
-            </div>
-          </div>
           <div class="guide-layout product-guide">
             <aside class="guide-toc panel" aria-label="Guide sections">
               <a href="#guide" data-guide-target="guide-step-network">Create network</a>
@@ -679,12 +666,6 @@
         </section>
 
         <section class="page" data-page="settings">
-          <div class="section-heading">
-            <div>
-              <p class="eyebrow">Settings</p>
-              <h2>Account and session</h2>
-            </div>
-          </div>
           <div class="settings-grid settings-console">
             <div class="panel settings-info-panel">
               <div class="panel-heading"><h3>Instance</h3></div>
@@ -714,6 +695,23 @@
     </div>
 
     <div class="toast" id="toast" role="status" aria-live="polite"></div>
+    <div class="confirm-modal" id="confirmModal" hidden>
+      <div class="confirm-backdrop" data-confirm-cancel></div>
+      <section class="confirm-dialog" role="dialog" aria-modal="true" aria-labelledby="confirmTitle" aria-describedby="confirmMessage" tabindex="-1">
+        <span class="confirm-icon" aria-hidden="true">
+          <svg viewBox="0 0 24 24"><path d="M12 9v4"></path><path d="M12 17h.01"></path><path d="M10.3 4.6 2.7 18a2 2 0 0 0 1.7 3h15.2a2 2 0 0 0 1.7-3L13.7 4.6a2 2 0 0 0-3.4 0Z"></path></svg>
+        </span>
+        <div>
+          <p class="eyebrow" id="confirmKicker">Confirm action</p>
+          <h2 id="confirmTitle">Are you sure?</h2>
+          <p id="confirmMessage" class="muted">This action cannot be undone.</p>
+        </div>
+        <div class="confirm-actions">
+          <button class="button" id="confirmCancelButton" data-confirm-cancel type="button">Cancel</button>
+          <button class="button danger" id="confirmAcceptButton" type="button">Confirm</button>
+        </div>
+      </section>
+    </div>
     <script src="/app.js"></script>
     <script type="module" src="/orbital-auth.js"></script>
   </body>

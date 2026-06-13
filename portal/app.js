@@ -35,6 +35,7 @@ const elements = {
   authInstanceUrl: $('authInstanceUrl'),
   pageKicker: $('pageKicker'),
   pageTitle: $('pageTitle'),
+  pageSubtitle: $('pageSubtitle'),
   planetState: $('planetState'),
   controllerStatus: $('controllerStatus'),
   networkCount: $('networkCount'),
@@ -121,14 +122,21 @@ const elements = {
   planetLinkButton: $('planetLinkButton'),
   linuxLinkButton: $('linuxLinkButton'),
   macosLinkButton: $('macosLinkButton'),
+  confirmModal: $('confirmModal'),
+  confirmDialog: $('confirmModal')?.querySelector('.confirm-dialog'),
+  confirmKicker: $('confirmKicker'),
+  confirmTitle: $('confirmTitle'),
+  confirmMessage: $('confirmMessage'),
+  confirmAcceptButton: $('confirmAcceptButton'),
+  confirmCancelButton: $('confirmCancelButton'),
 };
 
 const pageMeta = {
-  overview: ['Operations', 'Overview'],
-  networks: ['Controller', 'Networks'],
-  delivery: ['Client rollout', 'Client delivery'],
-  guide: ['Documentation', 'Guide'],
-  settings: ['Security', 'Settings'],
+  overview: ['Operations', 'Overview', 'Monitor controller health, planet delivery, and network readiness.'],
+  networks: ['Controller', 'Networks', 'Create networks, tune routes, manage DNS, and authorize members.'],
+  delivery: ['Client rollout', 'Client delivery', 'Generate temporary download links, platform installers, and join commands.'],
+  guide: ['Documentation', 'Guide', 'Follow the deployment-to-client workflow and jump directly to each action.'],
+  settings: ['Security', 'Settings', 'Manage console session details and reset the administrator password.'],
 };
 
 const zhCNText = {
@@ -137,7 +145,7 @@ const zhCNText = {
   'Private network control plane': '私有网络控制平面',
   'Private control plane': '私有控制平面',
   'Private ZeroTier control plane.': '私有 ZeroTier 控制平面。',
-  'Manage networks, members, planet delivery, and onboarding from one self-hosted console.': '在一个自托管控制台中管理网络、成员、planet 分发和客户端接入。',
+  'Manage networks, members, planet delivery, and onboarding from one self-hosted console.': '在一个自托管控制台中管理网络、成员、Planet 分发和客户端接入。',
   'Self-hosted': '自托管',
   'Planet delivery': 'Planet 分发',
   'Member authorization': '成员授权',
@@ -149,7 +157,7 @@ const zhCNText = {
   'Sign in': '登录',
   'First sign-in': '首次登录',
   'Set administrator password': '设置管理员密码',
-  'Use at least 8 characters with letters and numbers. Existing sessions are replaced after the password changes.': '至少使用 8 个字符，并包含字母和数字。密码修改后现有会话会被替换。',
+  'Use at least 8 characters with letters and numbers. Existing sessions are replaced after the password changes.': '至少使用 8 个字符，并包含字母和数字。密码修改后将更新当前会话。',
   'Current password': '当前密码',
   'New password': '新密码',
   'Confirm new password': '确认新密码',
@@ -169,35 +177,45 @@ const zhCNText = {
   'Signed out': '已退出',
   'Operations': '运维',
   'Controller': '控制器',
-  'Client rollout': '客户端上线',
+  'Client rollout': '客户端部署',
   'Documentation': '文档',
   'Security': '安全',
   'Refresh': '刷新',
   'Sign out': '退出',
-  'Monitor controller health, planet delivery, and network readiness.': '监控控制器健康、planet 分发和网络就绪状态。',
+  'Cancel': '取消',
+  'Confirm': '确认',
+  'Confirm action': '确认操作',
+  'Are you sure?': '确认执行？',
+  'This action cannot be undone.': '此操作无法撤销。',
+  'Monitor controller health, planet delivery, and network readiness.': '监控控制器健康、Planet 分发和网络就绪状态。',
+  'Create networks, tune routes, manage DNS, and authorize members.': '创建网络、调整路由、管理 DNS 并授权成员。',
+  'Generate temporary download links, platform installers, and join commands.': '生成临时下载链接、平台安装脚本和入网命令。',
+  'Follow the deployment-to-client workflow and jump directly to each action.': '按照部署到客户端的流程操作，并直接跳转到对应功能。',
+  'Manage console session details and reset the administrator password.': '管理控制台会话信息并重置管理员密码。',
+  'Live deployment command center': '部署状态中心',
   'Review operational status, resolve pending members, and open the next workflow from this dashboard.': '查看运行状态、处理待授权成员，并从仪表盘进入下一步工作流。',
-  'Open delivery': '打开分发',
-  'Open networks': '打开网络',
+  'Open delivery': '前往客户端分发',
+  'Open networks': '前往网络管理',
   'Planet file': 'Planet 文件',
   'Controller API': '控制器 API',
   'Members': '成员',
-  'Deployment path': '部署链路',
+  'Deployment path': '部署流程',
   'Controller endpoint': '控制器端点',
   'Waiting for status': '等待状态',
-  'Checking artifact': '检查文件',
+  'Checking artifact': '检查文件状态',
   'Checking API': '检查 API',
-  'Checking targets': '检查目标',
+  'Checking targets': '检查网络目标',
   'ZeroTier address': 'ZeroTier 地址',
   'Quick actions': '快捷操作',
   'Next operator steps': '下一步操作',
   'Create or tune networks': '创建或调整网络',
   'Routes, DNS, pools, and members': '路由、DNS、地址池和成员',
-  'Generate installers': '生成安装器',
-  'wget, Linux, and macOS rollout': 'wget、Linux 和 macOS 上线',
+  'Generate installers': '生成安装脚本',
+  'wget, Linux, and macOS rollout': 'wget、Linux 和 macOS 部署',
   'Open client guide': '打开客户端教程',
-  'Operator workflow and onboarding': '管理员流程和接入说明',
+  'Operator workflow and onboarding': '管理员流程与接入指南',
   'Network activity': '网络活动',
-  'Managed estate': '托管资产',
+  'Managed estate': '托管环境',
   'Live data': '实时数据',
   'Authorized members': '已授权成员',
   'Pending members': '待授权成员',
@@ -206,7 +224,9 @@ const zhCNText = {
   'Access': '访问',
   'Console security': '控制台安全',
   'Reset password': '重置密码',
-  'Use Settings to rotate the console password after deployment changes or operator handoff.': '部署变更或管理员交接后，可在设置中轮换控制台密码。',
+  'Reset console password?': '重置控制台密码？',
+  'Existing sessions will be invalidated after the password changes.': '密码修改后现有会话将失效。',
+  'Use Settings to rotate the console password after deployment changes or operator handoff.': '部署变更或管理员交接后，可在设置中更换控制台密码。',
   'Server readiness': '服务就绪状态',
   'Checking': '检查中',
   'Public console URL': '控制台公网 URL',
@@ -215,11 +235,11 @@ const zhCNText = {
   'Default link lifetime': '默认链接有效期',
   'Generated files': '已生成文件',
   'Recent networks': '最近网络',
-  'Controller inventory': '控制器资源',
+  'Controller inventory': '控制器清单',
   'Manage': '管理',
-  'Rollout readiness': '上线就绪状态',
+  'Rollout readiness': '部署就绪状态',
   'Network target': '网络目标',
-  'Network operations': '网络运维',
+  'Network operations': '网络管理',
   'New network name': '新网络名称',
   'Create': '创建',
   'Search': '搜索',
@@ -227,11 +247,11 @@ const zhCNText = {
   'No network selected': '未选择网络',
   'Select a network or create one to manage members, routes, DNS, and address allocation.': '选择或创建网络以管理成员、路由、DNS 和地址分配。',
   'Selected network': '当前网络',
-  'Network summary': '网络摘要',
+  'Network summary': '网络概览',
   'Pools': '地址池',
   'DNS': 'DNS',
-  'Raw detail': '原始详情',
-  'Authorize devices, set bridge mode, add labels, and manage assigned addresses.': '授权设备、设置桥接模式、添加标签并管理分配地址。',
+  'Raw detail': '原始数据',
+  'Authorize devices, set bridge mode, add labels, and manage assigned addresses.': '授权设备、设置桥接模式、填写备注名并管理分配地址。',
   'Name': '名称',
   'Member ID': '成员 ID',
   'State': '状态',
@@ -241,7 +261,7 @@ const zhCNText = {
   'Delete member': '删除成员',
   'Network basics': '网络基础设置',
   'Private network': '私有网络',
-  'Require explicit member authorization.': '需要显式授权成员。',
+  'Require explicit member authorization.': '成员需要手动授权。',
   'Save basics': '保存基础设置',
   'Easy setup': '快捷设置',
   'Set the managed route and IPv4 assignment range in one action.': '一次性设置托管路由和 IPv4 分配范围。',
@@ -267,7 +287,7 @@ const zhCNText = {
   'Use this for additional routes. Manage the primary IPv4 route from Easy setup.': '用于添加额外路由。主 IPv4 路由请在快捷设置中管理。',
   'Target CIDR': '目标 CIDR',
   'Gateway': '网关',
-  'Leave empty for this ZeroTier network': '此 ZeroTier 网络留空',
+  'Leave empty for this ZeroTier network': '使用当前 ZeroTier 网络时留空',
   'Add assignment pool': '添加地址池',
   'Use this for additional IPv4 ranges. Manage the primary pool from Easy setup.': '用于添加额外 IPv4 范围。主地址池请在快捷设置中管理。',
   'Range start': '范围起始',
@@ -279,18 +299,17 @@ const zhCNText = {
   'One IP address per line': '每行一个 IP 地址',
   'Save DNS': '保存 DNS',
   'Controller JSON': '控制器 JSON',
-  'Planet files and installers': 'Planet 文件和安装器',
-  'Generate temporary download links, platform installers, and join commands for client rollout.': '为客户端上线生成临时下载链接、平台安装器和入网命令。',
-  'Selected network': '当前网络',
-  'Used by generated installer scripts': '用于生成安装脚本',
-  'Temporary link TTL': '临时链接 TTL',
+  'Planet files and installers': 'Planet 文件和安装脚本',
+  'Generate temporary download links, platform installers, and join commands for client rollout.': '为客户端部署生成临时下载链接、安装脚本和入网命令。',
+  'Used by generated installer scripts': '生成的安装脚本将使用此网络',
+  'Temporary link TTL': '临时链接有效期',
   'Signed links expire automatically': '签名链接会自动过期',
   'Link policy': '链接策略',
   'Lifetime': '有效期',
   '10 minutes': '10 分钟',
   '30 minutes': '30 分钟',
   '1 hour': '1 小时',
-  'Network ID for installers': '安装器使用的网络 ID',
+  'Network ID for installers': '安装脚本使用的网络 ID',
   'Include Network ID': '包含网络 ID',
   'Generate non-interactive join commands.': '生成免交互入网命令。',
   'Planet file readiness is checked after sign-in.': '登录后检查 Planet 文件就绪状态。',
@@ -301,25 +320,25 @@ const zhCNText = {
   'Copy': '复制',
   'Linux': 'Linux',
   'Install and join': '安装并入网',
-  'Installs ZeroTier, replaces planet, restarts the service, then joins a network.': '安装 ZeroTier、替换 planet、重启服务，然后加入网络。',
-  'Generate an installer first.': '请先生成安装器。',
+  'Installs ZeroTier, replaces planet, restarts the service, then joins a network.': '安装 ZeroTier、替换 Planet 文件、重启服务，然后加入网络。',
+  'Generate an installer first.': '请先生成安装命令。',
   'macOS': 'macOS',
-  'Uses Homebrew or the official package, replaces planet, then joins a network.': '使用 Homebrew 或官方安装包，替换 planet 后加入网络。',
-  'Operator quick start': '管理员快速开始',
+  'Uses Homebrew or the official package, replaces planet, then joins a network.': '使用 Homebrew 或官方安装包，替换 Planet 文件后加入网络。',
+  'Operator quick start': '管理员快速上手',
   'Follow the deployment-to-client workflow and jump directly to the page that performs each action.': '按部署到客户端的流程操作，并可直接跳转到对应页面。',
   'Create network': '创建网络',
-  'Download planet': '下载 planet',
+  'Download planet': '下载 Planet',
   'Install clients': '安装客户端',
   'Authorize members': '授权成员',
   'Troubleshooting': '故障排查',
   'Open Networks, create a private network, then apply Easy setup for the managed IPv4 route.': '打开网络页面，创建私有网络，然后用快捷设置配置托管 IPv4 路由。',
   'Generate delivery links': '生成分发链接',
-  'Open Client delivery to create temporary wget, Linux, or macOS commands.': '打开客户端分发，创建临时 wget、Linux 或 macOS 命令。',
-  'Run the generated script. It installs ZeroTier, replaces the planet file, restarts the service, then joins a network.': '运行生成的脚本。它会安装 ZeroTier、替换 planet 文件、重启服务并加入网络。',
-  'New clients appear in Members. Authorize trusted devices and add clear labels for operations.': '新客户端会出现在成员列表中。授权可信设备并添加清晰标签。',
+  'Open Client delivery to create temporary wget, Linux, or macOS commands.': '进入客户端分发，创建临时 wget、Linux 或 macOS 命令。',
+  'Run the generated script. It installs ZeroTier, replaces the planet file, restarts the service, then joins a network.': '运行生成的脚本。它会安装 ZeroTier、替换 Planet 文件、重启服务并加入网络。',
+  'New clients appear in Members. Authorize trusted devices and add clear labels for operations.': '新客户端会出现在成员列表中。授权可信设备并添加清晰备注。',
   'Review members': '查看成员',
-  'Troubleshoot rollout': '排查上线问题',
-  'Check that the planet file exists, signed links are reachable, and the controller API is responding.': '检查 planet 文件是否存在、签名链接是否可访问、控制器 API 是否响应。',
+  'Troubleshoot rollout': '排查部署问题',
+  'Check that the planet file exists, signed links are reachable, and the controller API is responding.': '检查 Planet 文件是否存在、签名链接是否可访问、控制器 API 是否响应。',
   'Check health': '检查健康状态',
   'Account and session': '账号与会话',
   'Instance': '实例',
@@ -327,11 +346,11 @@ const zhCNText = {
   'Session': '会话',
   'Use this after sign-in to replace the console password and invalidate existing sessions.': '登录后可使用此功能替换控制台密码并使现有会话失效。',
   'Ready': '就绪',
-  'Needs planet': '需要 planet',
+  'Needs planet': '缺少 Planet',
   'artifact': '文件',
   'No downloadable files are available yet.': '暂无可下载文件。',
-  'Controller is unavailable. Installers can still replace the planet file, but automatic network selection is unavailable.': '控制器不可用。安装器仍可替换 planet 文件，但无法自动选择网络。',
-  'Controller is unavailable and the planet file is not ready.': '控制器不可用，且 planet 文件尚未就绪。',
+  'Controller is unavailable. Installers can still replace the planet file, but automatic network selection is unavailable.': '控制器不可用。安装脚本仍可替换 Planet 文件，但无法自动选择网络。',
+  'Controller is unavailable and the planet file is not ready.': '控制器不可用，且 Planet 文件尚未就绪。',
   'Missing': '缺失',
   'Online': '在线',
   'Relay': '中继',
@@ -348,18 +367,18 @@ const zhCNText = {
   'Controller unavailable': '控制器不可用',
   'Waiting for embedded controller': '等待内置控制器',
   'this IP assignment': '此 IP 分配',
-  'No networks': '无网络',
+  'No networks': '暂无网络',
   'No networks yet': '暂无网络',
   'No networks match your search.': '没有匹配的网络。',
   'No networks yet. Create one to start managing members and routes.': '暂无网络。创建一个网络以开始管理成员和路由。',
-  'Create a network to start managing members and client rollout.': '创建网络以开始管理成员和客户端上线。',
+  'Create a network to start managing members and client rollout.': '创建网络以开始管理成员和客户端部署。',
   'No members have joined this network yet.': '此网络还没有成员加入。',
   'No routes configured.': '未配置路由。',
   'No assignment pools configured.': '未配置地址池。',
   'Ready for signed downloads': '签名下载已就绪',
   'Planet file is missing': 'Planet 文件缺失',
   'Ready for temporary download links': '临时下载链接已就绪',
-  'Generate the planet file before client rollout': '客户端上线前请先生成 planet 文件',
+  'Generate the planet file before client rollout': '部署客户端前请先生成 Planet 文件',
   'Embedded API is responding': '内置 API 正在响应',
   'Waiting for controller response': '等待控制器响应',
   'Create a network before generating join commands': '生成入网命令前请先创建网络',
@@ -368,20 +387,20 @@ const zhCNText = {
   'API responding': 'API 响应中',
   'API unavailable': 'API 不可用',
   'no networks yet': '暂无网络',
-  'Temporary wget and installer links can be generated': '可以生成临时 wget 和安装器链接',
-  'Generate the planet file during container startup before distributing client commands.': '分发客户端命令前，请在容器启动时生成 planet 文件。',
-  'Planet is ready. Create a network to prefill installer commands, or generate installers that prompt for a Network ID.': 'Planet 已就绪。创建网络可预填安装命令，也可以生成需要用户输入网络 ID 的安装器。',
-  'Planet is ready. Select a network and choose whether installers should join it automatically.': 'Planet 已就绪。请选择网络，并决定安装器是否自动加入。',
+  'Temporary wget and installer links can be generated': '可以生成临时 wget 和安装脚本链接',
+  'Generate the planet file during container startup before distributing client commands.': '分发客户端命令前，请确认容器启动时已生成 Planet 文件。',
+  'Planet is ready. Create a network to prefill installer commands, or generate installers that prompt for a Network ID.': 'Planet 已就绪。创建网络可预填安装命令，也可以生成需要用户输入网络 ID 的安装脚本。',
+  'Planet is ready. Select a network and choose whether installers should join it automatically.': 'Planet 已就绪。请选择网络，并决定安装脚本是否自动加入。',
   'Planet file is not ready yet.': 'Planet 文件尚未就绪。',
-  'Planet file is required before generating installers.': '生成安装器前需要 Planet 文件。',
-  'Friendly name': '友好名称',
+  'Planet file is required before generating installers.': '生成安装脚本前需要 Planet 文件。',
+  'Friendly name': '备注名',
   'Active bridge': '启用桥接',
   'Delete IP assignment': '删除 IP 分配',
   'Delete': '删除',
   'Remove': '移除',
   'managed local route': '托管本地路由',
   'local ZeroTier route': '本地 ZeroTier 路由',
-  'managed assignment range': '托管分配范围',
+  'managed assignment range': '托管地址范围',
   'Signing in...': '正在登录...',
   'Updating...': '正在更新...',
   'Resetting...': '正在重置...',
@@ -409,13 +428,21 @@ const zhCNText = {
   'Route added.': '路由已添加。',
   'Assignment pool added.': '地址池已添加。',
   'Network deleted.': '网络已删除。',
+  'Members, routes, DNS, and assignment pools for this network will be removed.': '此网络的成员、路由、DNS 和地址池将被删除。',
   'Member updated.': '成员已更新。',
   'Member deleted.': '成员已删除。',
+  'This device will be removed from the selected network.': '该设备将从当前网络中移除。',
   'IP assignment removed.': 'IP 分配已移除。',
+  'The member will no longer receive this managed address.': '该成员将不再分配到此托管地址。',
   'IP assignment added.': 'IP 分配已添加。',
   'Route removed.': '路由已移除。',
+  'Clients will stop receiving this route from the controller.': '客户端将不再从控制器接收此路由。',
   'Assignment pool removed.': '地址池已移除。',
-  'Temporary planet command generated.': '临时 planet 命令已生成。',
+  'New members will no longer receive addresses from this range.': '新成员将不再从此范围获得地址。',
+  'Remove IP': '移除 IP',
+  'Remove route': '移除路由',
+  'Remove pool': '移除地址池',
+  'Temporary planet command generated.': '临时 Planet 命令已生成。',
   'Linux installer command generated.': 'Linux 安装命令已生成。',
   'macOS installer command generated.': 'macOS 安装命令已生成。',
   'Generate a command first.': '请先生成命令。',
@@ -761,6 +788,54 @@ function setButtonDisabled(button, disabled) {
   }
 }
 
+function confirmAction({ title, message, confirmText = 'Confirm', kicker = 'Confirm action' }) {
+  if (!elements.confirmModal) {
+    return Promise.resolve(window.confirm(`${t(title)}\n${t(message || '')}`));
+  }
+  return new Promise((resolve) => {
+    const previousFocus = document.activeElement;
+    let settled = false;
+
+    const cleanup = (result) => {
+      if (settled) {
+        return;
+      }
+      settled = true;
+      elements.confirmModal.hidden = true;
+      elements.confirmAcceptButton.removeEventListener('click', accept);
+      elements.confirmModal.removeEventListener('click', onModalClick);
+      document.removeEventListener('keydown', onKeydown);
+      previousFocus?.focus?.();
+      resolve(result);
+    };
+
+    const accept = () => cleanup(true);
+    const cancel = () => cleanup(false);
+    const onModalClick = (event) => {
+      if (event.target.closest('[data-confirm-cancel]')) {
+        cancel();
+      }
+    };
+    const onKeydown = (event) => {
+      if (event.key === 'Escape') {
+        event.preventDefault();
+        cancel();
+      }
+    };
+
+    elements.confirmKicker.textContent = t(kicker);
+    elements.confirmTitle.textContent = t(title);
+    elements.confirmMessage.textContent = t(message || 'This action cannot be undone.');
+    elements.confirmAcceptButton.textContent = t(confirmText);
+    elements.confirmCancelButton.textContent = t('Cancel');
+    elements.confirmModal.hidden = false;
+    elements.confirmAcceptButton.addEventListener('click', accept);
+    elements.confirmModal.addEventListener('click', onModalClick);
+    document.addEventListener('keydown', onKeydown);
+    requestAnimationFrame(() => elements.confirmDialog?.focus());
+  });
+}
+
 async function refreshAllWithFeedback() {
   await withButtonPending(elements.refreshAllButton, t('Refreshing...'), refreshAll);
   toast(t('Refreshed.'));
@@ -868,7 +943,11 @@ async function submitResetPassword(event) {
   const form = event.currentTarget;
   const newPassword = $('resetNewPassword').value;
   validatePasswordPair(newPassword, $('resetConfirmPassword').value);
-  if (!window.confirm(t('Reset the console password and invalidate existing sessions?'))) {
+  if (!(await confirmAction({
+    title: 'Reset console password?',
+    message: 'Existing sessions will be invalidated after the password changes.',
+    confirmText: 'Reset password',
+  }))) {
     return;
   }
   const payload = await withPending(form, t('Resetting...'), () => requestJson('/api/auth/reset', {
@@ -1599,7 +1678,11 @@ async function deleteSelectedNetwork() {
     return;
   }
   const networkName = state.selectedBundle?.network?.name || state.selectedNetworkId;
-  if (!window.confirm(t(`Delete network ${networkName}?`))) {
+  if (!(await confirmAction({
+    title: `Delete network ${networkName}?`,
+    message: 'Members, routes, DNS, and assignment pools for this network will be removed.',
+    confirmText: 'Delete network',
+  }))) {
     return;
   }
   await withButtonPending($('deleteNetworkButton'), t('Deleting...'), () => requestJson(`/api/controller/networks/${encodeURIComponent(state.selectedNetworkId)}`, { method: 'DELETE' }));
@@ -1655,7 +1738,11 @@ async function handleMembersClick(event) {
   const memberId = row.dataset.memberId;
   const action = button.dataset.action;
   if (action === 'delete-member') {
-    if (!window.confirm(t(`Delete member ${memberId}?`))) {
+    if (!(await confirmAction({
+      title: `Delete member ${memberId}?`,
+      message: 'This device will be removed from the selected network.',
+      confirmText: 'Delete member',
+    }))) {
       return;
     }
     await withButtonPending(button, t('Deleting...'), () => requestJson(`/api/controller/networks/${encodeURIComponent(state.selectedNetworkId)}/members/${encodeURIComponent(memberId)}`, {
@@ -1666,7 +1753,11 @@ async function handleMembersClick(event) {
   }
   if (action === 'delete-ip') {
     const ipAddress = button.dataset.ip || button.closest('.ip-chip')?.dataset.ip || 'this IP assignment';
-    if (!window.confirm(t(`Remove IP assignment ${ipAddress}?`))) {
+    if (!(await confirmAction({
+      title: `Remove IP assignment ${ipAddress}?`,
+      message: 'The member will no longer receive this managed address.',
+      confirmText: 'Remove IP',
+    }))) {
       return;
     }
     state.selectedBundle = await withButtonPending(button, '...', () => requestJson(`/api/controller/networks/${encodeURIComponent(state.selectedNetworkId)}/members/${encodeURIComponent(memberId)}/ip-assignments?index=${encodeURIComponent(button.dataset.index)}`, {
@@ -1714,7 +1805,11 @@ async function handleMemberIpSubmit(event) {
 }
 
 async function removeRoute(target, button) {
-  if (!window.confirm(t(`Remove route ${target}?`))) {
+  if (!(await confirmAction({
+    title: `Remove route ${target}?`,
+    message: 'Clients will stop receiving this route from the controller.',
+    confirmText: 'Remove route',
+  }))) {
     return;
   }
   await withButtonPending(button, t('Removing...'), async () => {
@@ -1725,7 +1820,11 @@ async function removeRoute(target, button) {
 }
 
 async function removePool(start, end, button) {
-  if (!window.confirm(t(`Remove assignment pool ${start} - ${end}?`))) {
+  if (!(await confirmAction({
+    title: `Remove assignment pool ${start} - ${end}?`,
+    message: 'New members will no longer receive addresses from this range.',
+    confirmText: 'Remove pool',
+  }))) {
     return;
   }
   await withButtonPending(button, t('Removing...'), async () => {
@@ -1864,6 +1963,9 @@ function setPage(pageName, options = {}) {
   });
   elements.pageKicker.textContent = t(pageMeta[normalized][0]);
   elements.pageTitle.textContent = t(pageMeta[normalized][1]);
+  if (elements.pageSubtitle) {
+    elements.pageSubtitle.textContent = t(pageMeta[normalized][2]);
+  }
   if (options.push !== false && location.hash !== `#${normalized}`) {
     location.hash = normalized;
   }
