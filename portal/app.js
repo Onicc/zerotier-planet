@@ -1423,9 +1423,7 @@ function syncNetworkForms(network) {
 function renderMembers(members) {
   if (!members.length) {
     elements.membersTable.innerHTML = `
-      <tr>
-        <td class="members-empty-cell" colspan="7"><div class="empty-inline">${escapeHtml(t('No members have joined this network yet.'))}</div></td>
-      </tr>
+      <div class="empty-inline member-empty">${escapeHtml(t('No members have joined this network yet.'))}</div>
     `;
     return;
   }
@@ -1434,13 +1432,37 @@ function renderMembers(members) {
     const id = member.id || member.address;
     const ips = Array.isArray(member.ipAssignments) ? member.ipAssignments : [];
     return `
-      <tr data-member-id="${escapeHtml(id)}">
-        <td data-label="${escapeAttr(t('Name'))}"><input class="table-input member-name-input" value="${escapeAttr(member.name || '')}" placeholder="${escapeAttr(t('Friendly name'))}" aria-label="${escapeAttr(t('Member name'))}"></td>
-        <td data-label="${escapeAttr(t('Member ID'))}"><span class="mono member-id">${escapeHtml(id)}</span></td>
-        <td data-label="${escapeAttr(t('State'))}">${renderPeerState(member)}</td>
-        <td data-label="${escapeAttr(t('Authorized'))}"><input class="member-authorized-input" type="checkbox" ${member.authorized ? 'checked' : ''} aria-label="${escapeAttr(t('Authorized'))}"></td>
-        <td data-label="${escapeAttr(t('Bridge'))}"><input class="member-bridge-input" type="checkbox" ${member.activeBridge ? 'checked' : ''} aria-label="${escapeAttr(t('Active bridge'))}"></td>
-        <td class="ip-assignments-cell" data-label="${escapeAttr(t('IP assignments'))}">
+      <article class="member-card" data-member-id="${escapeHtml(id)}">
+        <div class="member-identity">
+          <span class="member-node-icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24"><circle cx="12" cy="7" r="3"></circle><circle cx="6" cy="17" r="3"></circle><circle cx="18" cy="17" r="3"></circle><path d="M10 9.5 7.5 14.5"></path><path d="M14 9.5 16.5 14.5"></path><path d="M9 17h6"></path></svg>
+          </span>
+          <div class="member-copy">
+            <input class="member-name-input" value="${escapeAttr(member.name || '')}" placeholder="${escapeAttr(t('Friendly name'))}" aria-label="${escapeAttr(t('Member name'))}">
+            <div class="member-meta">
+              <span>${escapeHtml(t('Member ID'))}</span>
+              <span class="mono member-id">${escapeHtml(id)}</span>
+            </div>
+          </div>
+        </div>
+        <div class="member-state-block">
+          <span class="member-field-label">${escapeHtml(t('State'))}</span>
+          ${renderPeerState(member)}
+        </div>
+        <div class="member-toggle-group">
+          <label class="member-toggle">
+            <input class="member-authorized-input" type="checkbox" ${member.authorized ? 'checked' : ''} aria-label="${escapeAttr(t('Authorized'))}">
+            <span class="member-toggle-track" aria-hidden="true"></span>
+            <span>${escapeHtml(t('Authorized'))}</span>
+          </label>
+          <label class="member-toggle">
+            <input class="member-bridge-input" type="checkbox" ${member.activeBridge ? 'checked' : ''} aria-label="${escapeAttr(t('Active bridge'))}">
+            <span class="member-toggle-track" aria-hidden="true"></span>
+            <span>${escapeHtml(t('Bridge'))}</span>
+          </label>
+        </div>
+        <div class="member-ip-panel">
+          <span class="member-field-label">${escapeHtml(t('IP assignments'))}</span>
           <div class="ip-stack">
             <div class="ip-chip-list">
               ${ips.map((ip, index) => `
@@ -1452,13 +1474,13 @@ function renderMembers(members) {
               <button class="icon-button" type="submit">+</button>
             </form>
           </div>
-        </td>
-        <td class="actions-cell" data-label="${escapeAttr(t('Delete'))}">
+        </div>
+        <div class="member-actions">
           <button class="delete-icon-button" data-action="delete-member" type="button" aria-label="${escapeAttr(t('Delete member'))} ${escapeAttr(id)}" title="${escapeAttr(t('Delete member'))}">
             <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 4h6"></path><path d="M4 7h16"></path><path d="M10 11v6"></path><path d="M14 11v6"></path><path d="M6 7l1 14h10l1-14"></path></svg>
           </button>
-        </td>
-      </tr>
+        </div>
+      </article>
     `;
   }).join('');
 }
@@ -1693,7 +1715,7 @@ async function deleteSelectedNetwork() {
 }
 
 async function handleMemberInput(event) {
-  const row = event.target.closest('tr[data-member-id]');
+  const row = event.target.closest('[data-member-id]');
   if (!row) {
     return;
   }
@@ -1731,7 +1753,7 @@ async function handleMembersClick(event) {
   if (!button) {
     return;
   }
-  const row = button.closest('tr[data-member-id]');
+  const row = button.closest('[data-member-id]');
   if (!row) {
     return;
   }
@@ -1774,7 +1796,7 @@ async function handleMemberIpSubmit(event) {
     return;
   }
   event.preventDefault();
-  const row = form.closest('tr[data-member-id]');
+  const row = form.closest('[data-member-id]');
   const input = form.querySelector('input');
   const submitButton = form.querySelector('button[type="submit"]');
   const ipAddress = input.value.trim();
