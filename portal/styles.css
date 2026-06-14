@@ -25,6 +25,10 @@
   box-sizing: border-box;
 }
 
+[hidden] {
+  display: none !important;
+}
+
 html,
 body {
   min-height: 100%;
@@ -5256,6 +5260,57 @@ body.sidebar-collapsed .sidebar-status small {
 .language-switcher button.active {
   background: var(--blue);
   box-shadow: 0 8px 18px rgba(37, 99, 235, 0.16);
+}
+
+/* Auth visual fallback: keep the star network visible even when WebGL is unavailable. */
+.stellar-network {
+  opacity: 0.72;
+  background:
+    radial-gradient(circle at 18% 22%, rgba(57, 242, 223, 0.9) 0 2px, transparent 3px),
+    radial-gradient(circle at 38% 34%, rgba(124, 183, 255, 0.82) 0 2px, transparent 3px),
+    radial-gradient(circle at 62% 24%, rgba(255, 200, 87, 0.82) 0 2px, transparent 3px),
+    radial-gradient(circle at 78% 48%, rgba(255, 107, 159, 0.8) 0 2px, transparent 3px),
+    radial-gradient(circle at 28% 68%, rgba(124, 183, 255, 0.74) 0 2px, transparent 3px),
+    radial-gradient(circle at 58% 74%, rgba(57, 242, 223, 0.78) 0 2px, transparent 3px),
+    linear-gradient(33deg, transparent 31%, rgba(124, 183, 255, 0.18) 31.2% 31.6%, transparent 31.8%),
+    linear-gradient(156deg, transparent 40%, rgba(57, 242, 223, 0.16) 40.2% 40.6%, transparent 40.8%),
+    linear-gradient(91deg, transparent 53%, rgba(255, 200, 87, 0.12) 53.2% 53.6%, transparent 53.8%),
+    linear-gradient(90deg, rgba(124, 183, 255, 0.08) 1px, transparent 1px),
+    linear-gradient(0deg, rgba(124, 183, 255, 0.07) 1px, transparent 1px);
+  background-size:
+    100% 100%,
+    100% 100%,
+    100% 100%,
+    100% 100%,
+    100% 100%,
+    100% 100%,
+    100% 100%,
+    100% 100%,
+    100% 100%,
+    72px 72px,
+    72px 72px;
+}
+
+.stellar-network::after {
+  position: absolute;
+  inset: 0;
+  content: "";
+  background:
+    radial-gradient(circle at 46% 46%, rgba(57, 242, 223, 0.18), transparent 28%),
+    radial-gradient(circle at 68% 58%, rgba(37, 99, 235, 0.18), transparent 26%);
+  animation: stellarFallbackPulse 8s ease-in-out infinite alternate;
+}
+
+@keyframes stellarFallbackPulse {
+  from {
+    opacity: 0.58;
+    transform: scale(1);
+  }
+
+  to {
+    opacity: 0.92;
+    transform: scale(1.035);
+  }
 }
 
 /* Members table wide-screen tuning. Keep the desktop view dense and one-line where possible. */

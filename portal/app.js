@@ -14,6 +14,8 @@ const state = {
   networkFilter: '',
   easyPoolTouched: false,
   lang: getInitialLanguage(),
+  liveRefreshTimer: 0,
+  liveRefreshPromise: null,
 };
 
 const $ = (id) => document.getElementById(id);
@@ -643,6 +645,18 @@ function clearPasswordFields() {
   });
 }
 
+function notifyAuthVisible() {
+  window.requestAnimationFrame(() => {
+    window.dispatchEvent(new Event('resize'));
+    window.dispatchEvent(new CustomEvent('ztp:auth-visible'));
+  });
+}
+
+function isEditingFormControl() {
+  const active = document.activeElement;
+  return Boolean(active?.matches?.('input, textarea, select, [contenteditable="true"]'));
+}
+
 function parseIpv4(value) {
   const parts = String(value || '').trim().split('.');
   if (parts.length !== 4) {
@@ -850,6 +864,48 @@ async function refreshSelectedNetworkWithFeedback() {
   toast(t('Network refreshed.'));
 }
 
+function shouldSkipSilentRefresh() {
+  return !state.token
+    || elements.appShell.hidden
+    || document.hidden
+    || isEditingFormControl()
+    || Boolean(elements.confirmModal && !elements.confirmModal.hidden);
+}
+
+async function refreshLiveData(options = {}) {
+  if (!options.force && shouldSkipSilentRefresh()) {
+    return;
+  }
+  if (state.liveRefreshPromise) {
+    return state.liveRefreshPromise;
+  }
+  state.liveRefreshPromise = refreshAll({ silent: true })
+    .catch((error) => {
+      if (error.message && /401|authenticated|Unauthorized/i.test(error.message)) {
+        clearSession();
+        showLogin();
+      }
+    })
+    .finally(() => {
+      state.liveRefreshPromise = null;
+    });
+  return state.liveRefreshPromise;
+}
+
+function startLiveRefresh() {
+  stopLiveRefresh();
+  state.liveRefreshTimer = window.setInterval(() => {
+    refreshLiveData().catch(() => {});
+  }, 12000);
+}
+
+function stopLiveRefresh() {
+  if (state.liveRefreshTimer) {
+    window.clearInterval(state.liveRefreshTimer);
+    state.liveRefreshTimer = 0;
+  }
+}
+
 async function requestJson(path, options = {}) {
   const headers = {
     Accept: 'application/json',
@@ -966,26 +1022,31 @@ async function logout() {
   } catch (error) {
     // Session may already be expired.
   }
+  stopLiveRefresh();
   clearSession();
   clearPasswordFields();
   showLogin();
 }
 
 function showLogin() {
+  stopLiveRefresh();
   clearPasswordFields();
   elements.authShell.hidden = false;
   elements.appShell.hidden = true;
   elements.loginForm.classList.add('active');
   elements.firstPasswordForm.classList.remove('active');
   elements.loginUsername.value = state.username || 'admin';
+  notifyAuthVisible();
   window.setTimeout(() => elements.loginPassword.focus(), 0);
 }
 
 function showFirstPassword() {
+  stopLiveRefresh();
   elements.authShell.hidden = false;
   elements.appShell.hidden = true;
   elements.loginForm.classList.remove('active');
   elements.firstPasswordForm.classList.add('active');
+  notifyAuthVisible();
   window.setTimeout(() => elements.firstNewPassword.focus(), 0);
 }
 
@@ -994,6 +1055,7 @@ async function enterApp() {
   elements.appShell.hidden = false;
   setPage(cleanPageName(location.hash || 'overview'), { push: false });
   await refreshAll();
+  startLiveRefresh();
 }
 
 async function fetchOverview() {
@@ -1001,7 +1063,7 @@ async function fetchOverview() {
   renderOverview();
 }
 
-async function fetchController() {
+async function fetchController(options = {}) {
   try {
     state.controller = await requestJson('/api/controller/status');
     state.networks = state.controller.networks || [];
@@ -1020,13 +1082,15 @@ async function fetchController() {
     state.networks = [];
     state.selectedBundle = null;
     renderControllerError(error.message);
-    toast(error.message);
+    if (!options.silent) {
+      toast(error.message);
+    }
   }
 }
 
-async function refreshAll() {
+async function refreshAll(options = {}) {
   await fetchOverview();
-  await fetchController();
+  await fetchController(options);
 }
 
 function renderOverview() {
@@ -1335,6 +1399,36 @@ function renderDeliveryNetworks() {
   updateDeliveryControls();
 }
 
+function syncSelectedNetworkCache() {
+  const bundle = state.selectedBundle;
+  if (!bundle?.network) {
+    return;
+  }
+
+  const members = Array.isArray(bundle.members) ? bundle.members : [];
+  const networkId = bundle.network.nwid || bundle.network.id || state.selectedNetworkId;
+  const summary = {
+    ...bundle.network,
+    nwid: networkId,
+    id: bundle.network.id || networkId,
+    memberCount: members.length,
+    authorizedMemberCount: members.filter((member) => Boolean(member.authorized)).length,
+  };
+
+  state.selectedBundle.network = summary;
+  let found = false;
+  state.networks = state.networks.map((network) => {
+    if (network.nwid !== networkId && network.id !== networkId) {
+      return network;
+    }
+    found = true;
+    return { ...network, ...summary };
+  });
+  if (!found && networkId) {
+    state.networks = [summary, ...state.networks];
+  }
+}
+
 async function loadNetwork(nwid, options = {}) {
   if (!nwid) {
     return;
@@ -1342,8 +1436,8 @@ async function loadNetwork(nwid, options = {}) {
   state.selectedNetworkId = nwid;
   localStorage.setItem('ztp_selected_network', nwid);
   state.selectedBundle = await requestJson(`/api/controller/networks/${encodeURIComponent(nwid)}`);
-  renderNetworkList();
-  renderDeliveryNetworks();
+  syncSelectedNetworkCache();
+  renderController();
   renderSelectedNetwork();
   if (!options.silent) {
     toast(t('Network loaded.'));
@@ -1543,9 +1637,7 @@ async function patchSelectedNetwork(body, message, form, pendingText = 'Saving..
     method: 'PATCH',
     body,
   }));
-  state.networks = state.networks.map((network) => (
-    network.nwid === state.selectedNetworkId ? state.selectedBundle.network : network
-  ));
+  syncSelectedNetworkCache();
   renderController();
   renderSelectedNetwork();
   toast(t(message));
@@ -1721,6 +1813,8 @@ async function handleMemberInput(event) {
         ? { ...member, ...payload.member, peer: member.peer, peerState: member.peerState }
         : member
     ));
+    syncSelectedNetworkCache();
+    renderController();
     renderMembers(state.selectedBundle.members);
   }
   toast(t('Member updated.'));
@@ -1763,6 +1857,8 @@ async function handleMembersClick(event) {
     state.selectedBundle = await withButtonPending(button, '...', () => requestJson(`/api/controller/networks/${encodeURIComponent(state.selectedNetworkId)}/members/${encodeURIComponent(memberId)}/ip-assignments?index=${encodeURIComponent(button.dataset.index)}`, {
       method: 'DELETE',
     }));
+    syncSelectedNetworkCache();
+    renderController();
     renderSelectedNetwork();
     toast(t('IP assignment removed.'));
   }
@@ -1800,6 +1896,8 @@ async function handleMemberIpSubmit(event) {
     method: 'POST',
     body: { ipAddress },
   }));
+  syncSelectedNetworkCache();
+  renderController();
   renderSelectedNetwork();
   toast(t('IP assignment added.'));
 }
@@ -2174,6 +2272,12 @@ function bindEvents() {
     });
   });
   window.addEventListener('hashchange', () => setPage(cleanPageName(location.hash || 'overview'), { push: false }));
+  window.addEventListener('focus', () => refreshLiveData().catch(() => {}));
+  document.addEventListener('visibilitychange', () => {
+    if (!document.hidden) {
+      refreshLiveData().catch(() => {});
+    }
+  });
 
   $('planetLinkButton').addEventListener('click', () => generatePlanetCommand().catch((error) => toast(error.message)));
   $('linuxLinkButton').addEventListener('click', () => generateLinuxCommand().catch((error) => toast(error.message)));

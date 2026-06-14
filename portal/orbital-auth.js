@@ -25,6 +25,9 @@ if (canvas && hasWebGLSupport()) {
   let hoveredIndex = -1;
   let pointerTarget = new THREE.Vector2();
   let frameId = 0;
+  let pendingResize = true;
+  let lastWidth = 0;
+  let lastHeight = 0;
   const ringRadii = [9, 13.4, 17.8, 22.2];
 
   const scene = new THREE.Scene();
@@ -591,13 +594,24 @@ if (canvas && hasWebGLSupport()) {
 
   function onResize() {
     const rect = canvas.getBoundingClientRect();
-    const width = Math.max(1, Math.round(rect.width));
-    const height = Math.max(1, Math.round(rect.height));
+    const width = Math.round(rect.width);
+    const height = Math.round(rect.height);
+    if (width < 2 || height < 2) {
+      pendingResize = true;
+      return false;
+    }
+    if (!pendingResize && width === lastWidth && height === lastHeight) {
+      return true;
+    }
+    lastWidth = width;
+    lastHeight = height;
+    pendingResize = false;
     camera.aspect = width / height;
     camera.position.z = width < 520 ? 52 : 46;
     camera.updateProjectionMatrix();
     renderer.setSize(width, height, false);
     renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+    return true;
   }
 
   function onPointerMove(event) {
@@ -617,9 +631,11 @@ if (canvas && hasWebGLSupport()) {
   function animate() {
     const authShell = document.querySelector('#authShell');
     if (authShell?.hidden) {
+      pendingResize = true;
       frameId = requestAnimationFrame(animate);
       return;
     }
+    onResize();
 
     const elapsed = clock.getElapsedTime();
     const speed = 0.88;
@@ -665,6 +681,10 @@ if (canvas && hasWebGLSupport()) {
   animate();
 
   window.addEventListener('resize', onResize);
+  window.addEventListener('ztp:auth-visible', () => {
+    pendingResize = true;
+    onResize();
+  });
   canvas.addEventListener('pointermove', onPointerMove);
   canvas.addEventListener('pointerleave', onPointerLeave);
   document.addEventListener('visibilitychange', () => {
