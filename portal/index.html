@@ -395,7 +395,22 @@
                       </div>
                       <button class="button" id="refreshNetworkButton" type="button">Refresh</button>
                     </div>
-                    <div class="members-list" id="membersTable" aria-live="polite"></div>
+                    <div class="table-wrap">
+                      <table class="data-table members-table">
+                        <thead>
+                          <tr>
+                            <th>Name</th>
+                            <th>Member ID</th>
+                            <th>State</th>
+                            <th>Authorized</th>
+                            <th>Bridge</th>
+                            <th>IP assignments</th>
+                            <th class="icon-column"><span class="sr-only">Delete member</span></th>
+                          </tr>
+                        </thead>
+                        <tbody id="membersTable"></tbody>
+                      </table>
+                    </div>
                   </div>
                 </div>
 
