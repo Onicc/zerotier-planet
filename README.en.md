@@ -130,13 +130,15 @@ The script:
 4. Downloads the temporary signed `planet` file
 5. Backs up and replaces `/Library/Application Support/ZeroTier/One/planet`
 6. Restarts ZeroTier
-7. Prompts for the Network ID and joins the network
+7. Prompts for the Network ID and joins the network with `sudo zerotier-cli`
 
 Non-interactive join:
 
 ```bash
 curl -fsSL 'temporary-installer-link' | NETWORK_ID=YOUR_NETWORK_ID bash
 ```
+
+The macOS script is intended to run as a normal user. It calls `sudo` only for privileged operations such as installing the PKG, replacing `planet`, restarting ZeroTier, and joining the network. Do not pipe it to `sudo bash` when using Homebrew.
 
 ### Download Planet Only
 

@@ -325,7 +325,7 @@ const zhCNText = {
   'Installs ZeroTier, replaces planet, restarts the service, then joins a network.': '安装 ZeroTier、替换 Planet 文件、重启服务，然后加入网络。',
   'Generate an installer first.': '请先生成安装命令。',
   'macOS': 'macOS',
-  'Uses Homebrew or the official package, replaces planet, then joins a network.': '使用 Homebrew 或官方安装包，替换 Planet 文件后加入网络。',
+  'Uses Homebrew or the official package, replaces planet, then joins with sudo when required.': '使用 Homebrew 或官方安装包，替换 Planet 文件，并在需要权限时通过 sudo 入网。',
   'Operator quick start': '管理员快速上手',
   'Follow the deployment-to-client workflow and jump directly to the page that performs each action.': '按部署到客户端的流程操作，并可直接跳转到对应页面。',
   'Create network': '创建网络',

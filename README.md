@@ -130,13 +130,15 @@ curl -fsSL '临时安装链接' | bash
 4. 下载临时签名的 `planet` 文件
 5. 备份并替换 `/Library/Application Support/ZeroTier/One/planet`
 6. 重启 ZeroTier 服务
-7. 提示输入 Network ID 并加入网络
+7. 提示输入 Network ID，并通过 `sudo zerotier-cli` 加入网络
 
 也可以非交互式加入：
 
 ```bash
 curl -fsSL '临时安装链接' | NETWORK_ID=你的NetworkID bash
 ```
+
+macOS 脚本建议以普通用户执行。脚本内部会在安装官方 PKG、替换 `planet`、重启 ZeroTier、加入网络等需要权限的步骤自动调用 `sudo`。如果使用 Homebrew，不建议把整条命令改成 `sudo bash`。
 
 ### 仅下载 planet
 

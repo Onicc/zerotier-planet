@@ -1326,12 +1326,22 @@ restart_zerotier() {
   fi
 }
 
+find_zerotier_cli() {
+  if command -v zerotier-cli >/dev/null 2>&1; then
+    command -v zerotier-cli
+    return
+  fi
+  if [ -x "/Applications/ZeroTier.app/Contents/MacOS/zerotier-cli" ]; then
+    printf '%s\\n' "/Applications/ZeroTier.app/Contents/MacOS/zerotier-cli"
+    return
+  fi
+  fail "zerotier-cli was not found after installation"
+}
+
 join_network() {
   local network_id="\${NETWORK_ID:-}"
-  local cli="zerotier-cli"
-  if ! command -v "$cli" >/dev/null 2>&1 && [ -x "/Applications/ZeroTier.app/Contents/MacOS/zerotier-cli" ]; then
-    cli="/Applications/ZeroTier.app/Contents/MacOS/zerotier-cli"
-  fi
+  local cli
+  cli="$(find_zerotier_cli)"
 
   if [ -z "$network_id" ]; then
     printf "Network ID to join (press Enter to skip): "
@@ -1339,7 +1349,7 @@ join_network() {
   fi
 
   if [ -n "$network_id" ]; then
-    "$cli" join "$network_id"
+    sudo "$cli" join "$network_id"
     log "Join request sent. Authorize this device in the console."
   else
     log "Skipped network join"
@@ -1370,11 +1380,7 @@ sleep 3
 join_network
 
 log "Current peers"
-if command -v zerotier-cli >/dev/null 2>&1; then
-  zerotier-cli peers || true
-elif [ -x "/Applications/ZeroTier.app/Contents/MacOS/zerotier-cli" ]; then
-  "/Applications/ZeroTier.app/Contents/MacOS/zerotier-cli" peers || true
-fi
+sudo "$(find_zerotier_cli)" peers || true
 `;
 }
 
