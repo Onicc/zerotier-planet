@@ -83,7 +83,7 @@ http://服务器IP:3000
 在 `Networks` 中选择一个网络后，可以管理：
 
 - `Members`：授权设备、设置桥接模式、设置备注名、添加/删除 IP 分配、删除成员
-- `Settings`：修改网络名称、切换私有网络、配置 Easy Setup、配置 IPv4/IPv6 分配模式
+- `Settings`：修改网络名称、设置 MTU、切换私有网络、配置 Easy Setup、配置 IPv4/IPv6 分配模式
 - `Routes`：添加/删除托管路由和地址池
 - `DNS`：配置搜索域和 DNS 服务器
 - `Raw detail`：查看 Controller 返回的原始网络 JSON

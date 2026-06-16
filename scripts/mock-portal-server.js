@@ -10,12 +10,24 @@ const portalPath = path.join(repoRoot, 'portal');
 const assetsPath = path.join(portalPath, 'assets');
 const port = Number(process.env.MOCK_PORT || process.env.PORT || 3001);
 const bindHost = process.env.MOCK_HOST || '127.0.0.1';
+const networkMtuMin = 1280;
+const networkMtuMax = 10000;
 
 let sessionToken = 'mock-session-token';
 
 function hasMockSession(req) {
   const auth = String(req.headers.authorization || '');
   return auth === `Bearer ${sessionToken}` || auth === 'Bearer mock-session-token';
+}
+
+function normalizeNetworkMtu(value) {
+  const mtu = Number(value);
+  if (!Number.isInteger(mtu) || mtu < networkMtuMin || mtu > networkMtuMax) {
+    const error = new Error(`MTU must be an integer between ${networkMtuMin} and ${networkMtuMax}`);
+    error.statusCode = 400;
+    throw error;
+  }
+  return mtu;
 }
 
 const mockState = {
@@ -25,6 +37,7 @@ const mockState = {
       id: 'e5cd896ab48f3c2f',
       name: 'Headquarters mesh',
       private: true,
+      mtu: 2800,
       routes: [{ target: '10.88.0.0/24', via: null }],
       ipAssignmentPools: [{ ipRangeStart: '10.88.0.20', ipRangeEnd: '10.88.0.240' }],
       v4AssignMode: { zt: true },
@@ -63,6 +76,7 @@ const mockState = {
       id: '8056c2e21c000001',
       name: 'Lab staging',
       private: true,
+      mtu: 2800,
       routes: [{ target: '10.91.0.0/24', via: null }],
       ipAssignmentPools: [{ ipRangeStart: '10.91.0.10', ipRangeEnd: '10.91.0.120' }],
       v4AssignMode: { zt: true },
@@ -293,6 +307,7 @@ async function handleController(req, res, parsedUrl, body) {
         id: nwid,
         name: String(body.name || 'New network').trim(),
         private: true,
+        mtu: 2800,
         routes: [],
         ipAssignmentPools: [],
         v4AssignMode: { zt: true },
@@ -322,6 +337,9 @@ async function handleController(req, res, parsedUrl, body) {
         }
         if (body.private !== undefined) {
           network.private = Boolean(body.private);
+        }
+        if (body.mtu !== undefined) {
+          network.mtu = normalizeNetworkMtu(body.mtu);
         }
         if (body.v4AssignMode) {
           network.v4AssignMode = body.v4AssignMode;
@@ -486,7 +504,7 @@ const server = http.createServer((req, res) => {
 
   if (parsedUrl.pathname.startsWith('/api/')) {
     handleApi(req, res, parsedUrl).catch((error) => {
-      sendJson(res, 500, { error: error.message });
+      sendJson(res, error.statusCode || 500, { error: error.message });
     });
     return;
   }

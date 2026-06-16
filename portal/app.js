@@ -93,6 +93,7 @@ const elements = {
   poolsList: $('poolsList'),
   rawNetworkJson: $('rawNetworkJson'),
   networkNameInput: $('networkNameInput'),
+  networkMtuInput: $('networkMtuInput'),
   networkPrivateInput: $('networkPrivateInput'),
   easyCidr: $('easyCidr'),
   easyPoolStart: $('easyPoolStart'),
@@ -262,6 +263,8 @@ const zhCNText = {
   'IP assignments': 'IP 分配',
   'Delete member': '删除成员',
   'Network basics': '网络基础设置',
+  'MTU': 'MTU',
+  'MTU must be an integer between 1280 and 10000.': 'MTU 必须是 1280 到 10000 之间的整数。',
   'Private network': '私有网络',
   'Require explicit member authorization.': '成员需要手动授权。',
   'Save basics': '保存基础设置',
@@ -597,6 +600,8 @@ function cleanPageName(value) {
 }
 
 const fallbackCidr = '10.147.17.0/24';
+const mtuMin = 1280;
+const mtuMax = 10000;
 
 function toast(message) {
   elements.toast.textContent = message;
@@ -609,6 +614,21 @@ function toast(message) {
 
 function commandQuote(value) {
   return `'${String(value).replace(/'/g, `'\\''`)}'`;
+}
+
+function readNetworkMtu() {
+  const raw = elements.networkMtuInput.value.trim();
+  if (!raw) {
+    return null;
+  }
+  if (!/^\d+$/.test(raw)) {
+    throw new Error(t(`MTU must be an integer between ${mtuMin} and ${mtuMax}.`));
+  }
+  const mtu = Number(raw);
+  if (!Number.isInteger(mtu) || mtu < mtuMin || mtu > mtuMax) {
+    throw new Error(t(`MTU must be an integer between ${mtuMin} and ${mtuMax}.`));
+  }
+  return mtu;
 }
 
 function saveSession(payload) {
@@ -1493,6 +1513,9 @@ function syncNetworkForms(network) {
   const defaults = defaultPoolForCidr(cidr) || defaultPoolForCidr(fallbackCidr);
 
   elements.networkNameInput.value = network.name || '';
+  elements.networkMtuInput.value = network.mtu !== undefined && network.mtu !== null && Number.isInteger(Number(network.mtu))
+    ? String(Number(network.mtu))
+    : '';
   elements.networkPrivateInput.checked = Boolean(network.private);
   elements.v4AssignInput.checked = Boolean(network.v4AssignMode?.zt);
   elements.v6PlaneInput.checked = Boolean(network.v6AssignMode?.['6plane']);
@@ -1645,10 +1668,15 @@ async function patchSelectedNetwork(body, message, form, pendingText = 'Saving..
 
 async function submitBasics(event) {
   event.preventDefault();
-  await patchSelectedNetwork({
+  const mtu = readNetworkMtu();
+  const body = {
     name: elements.networkNameInput.value.trim(),
     private: elements.networkPrivateInput.checked,
-  }, 'Network basics saved.', event.currentTarget);
+  };
+  if (mtu !== null) {
+    body.mtu = mtu;
+  }
+  await patchSelectedNetwork(body, 'Network basics saved.', event.currentTarget);
 }
 
 async function submitAssignModes(event) {

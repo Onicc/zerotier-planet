@@ -116,6 +116,20 @@ function timingEqual(left, right, encoding = 'hex') {
   return leftBuffer.length === rightBuffer.length && crypto.timingSafeEqual(leftBuffer, rightBuffer);
 }
 
+const networkMtuMin = 1280;
+const networkMtuMax = 10000;
+
+function normalizeNetworkMtu(value) {
+  if (value === undefined) {
+    return undefined;
+  }
+  const mtu = Number(value);
+  if (!Number.isInteger(mtu) || mtu < networkMtuMin || mtu > networkMtuMax) {
+    throw Object.assign(new Error(`MTU must be an integer between ${networkMtuMin} and ${networkMtuMax}`), { statusCode: 400 });
+  }
+  return mtu;
+}
+
 function parseIpv4(value) {
   const parts = String(value || '').trim().split('.');
   if (parts.length !== 4) {
@@ -763,11 +777,11 @@ async function createNetwork(body) {
 }
 
 async function updateNetwork(nwid, body) {
-  const allowed = ['name', 'private', 'v4AssignMode', 'v6AssignMode', 'dns', 'routes', 'ipAssignmentPools'];
+  const allowed = ['name', 'private', 'mtu', 'v4AssignMode', 'v6AssignMode', 'dns', 'routes', 'ipAssignmentPools'];
   const payload = {};
   for (const key of allowed) {
     if (Object.prototype.hasOwnProperty.call(body, key)) {
-      payload[key] = body[key];
+      payload[key] = key === 'mtu' ? normalizeNetworkMtu(body[key]) : body[key];
     }
   }
   if (!Object.keys(payload).length) {

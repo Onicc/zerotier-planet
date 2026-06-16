@@ -83,7 +83,7 @@ Copy the Network ID after creation. Clients need it when joining the network.
 After selecting a network in `Networks`, you can manage:
 
 - `Members`: authorize devices, set bridge mode, save labels, add/remove IP assignments, delete members
-- `Settings`: rename the network, switch private mode, apply Easy Setup, configure IPv4/IPv6 assignment modes
+- `Settings`: rename the network, set MTU, switch private mode, apply Easy Setup, configure IPv4/IPv6 assignment modes
 - `Routes`: add/remove managed routes and assignment pools
 - `DNS`: configure the search domain and DNS servers
 - `Raw detail`: inspect the raw network JSON returned by the controller
