@@ -21,6 +21,9 @@ ENV TZ=Asia/Shanghai
 # controller-specific build chain is used, so keep this on a verified ref.
 ARG TAG=actions
 ARG ZEROTIER_REPO=https://github.com/zerotier/ZeroTierOne.git
+ARG SOURCE_COMMIT=unknown
+ARG ZEROTIER_REF=actions
+ARG ZEROTIER_COMMIT=unknown
 ENV TAG=${TAG}
 
 WORKDIR /app
@@ -54,6 +57,14 @@ RUN --mount=type=cache,target=/root/.cargo/registry \
     echo "zerotier-one init success!"
 
 FROM alpine:3.22
+
+ARG SOURCE_COMMIT=unknown
+ARG ZEROTIER_REF=actions
+ARG ZEROTIER_COMMIT=unknown
+
+LABEL org.opencontainers.image.revision="${SOURCE_COMMIT}" \
+      io.zerotier-planet.zerotier-ref="${ZEROTIER_REF}" \
+      io.zerotier-planet.zerotier-commit="${ZEROTIER_COMMIT}"
 
 WORKDIR /app
 

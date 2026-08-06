@@ -291,7 +291,9 @@ Every successful publication creates:
 
 The workflow can also be started manually from GitHub Actions and limited to `linux/amd64`, `linux/arm64`, or the default dual-platform build. To prevent a single-platform build from replacing stable tags, `latest` and `actions` are updated only by the default dual-platform publication; a manual single-platform diagnostic run publishes only its `sha-*` tag. The job summary records the platforms, resolved upstream ZeroTier commit, and final image digest.
 
-The scheduled build runs approximately every six hours to follow ZeroTier's `actions` branch. At the start of each workflow run that branch is resolved to a concrete commit, and the same commit is used for the smoke and publish stages so an upstream branch update cannot change image contents midway through one run.
+The scheduled workflow checks once per day (`19:17 UTC`, approximately `03:17` the next day in GMT+8; GitHub may start it later) to follow ZeroTier's `actions` branch. At the start of the run it resolves that branch to a concrete commit and reads OCI labels from the Docker Hub `latest` image. When both the repository commit and the upstream ZeroTier commit already match the published image, the run records a “no rebuild required” summary and skips dependency installation, ZeroTier compilation, and Docker Hub publication. A changed commit or a missing `latest` image triggers the complete quality, amd64 smoke, and dual-platform publish flow. Push and manual `workflow_dispatch` events always run the complete flow so they can be used for validation or a deliberate rebuild.
+
+Published images record `org.opencontainers.image.revision`, `io.zerotier-planet.zerotier-ref`, and `io.zerotier-planet.zerotier-commit` for scheduled comparisons and troubleshooting. The smoke and publish stages always use the same resolved ZeroTier commit, so an upstream branch update cannot change image contents midway through one workflow run.
 
 ## Security Recommendations
 

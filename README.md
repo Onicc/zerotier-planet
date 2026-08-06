@@ -291,7 +291,14 @@ npm run build
 
 可以从 GitHub Actions 手动运行工作流，并选择只发布 `linux/amd64`、只发布 `linux/arm64` 或默认双架构。为防止单架构构建破坏稳定标签，`latest` 和 `actions` 只在默认双架构发布时更新；手动单架构排障仅发布对应的 `sha-*` 标签。发布摘要会记录实际平台、解析后的 ZeroTier 上游 commit 和镜像 digest。
 
-定时任务约每 6 小时运行一次，用于跟进 ZeroTier `actions` 分支。工作流会在开始时将该分支解析为具体 commit，并在冒烟和发布阶段使用同一个 commit，避免一次运行中上游分支移动造成不同镜像内容。
+定时任务每天检查一次（Cron 为 `19:17 UTC`，即 GMT+8 次日约 `03:17`；GitHub 可能延迟启动），用于跟进 ZeroTier `actions` 分支。工作流会在开始时把该分支解析为具体 commit，并读取 Docker Hub `latest` 镜像中的 OCI labels：
+
+- 本仓库 commit 与已发布镜像一致；并且
+- ZeroTier 上游 commit 与已发布镜像一致
+
+同时成立时，本次定时任务只记录“无需重建”摘要，不安装前端依赖、不编译 ZeroTier，也不更新 Docker Hub。任一 commit 变化或 `latest` 尚不存在时，才执行完整质量检查、amd64 冒烟和双架构发布。`push` 与手动 `workflow_dispatch` 始终强制执行完整流程，便于验证和主动重建。
+
+镜像会记录 `org.opencontainers.image.revision`、`io.zerotier-planet.zerotier-ref` 和 `io.zerotier-planet.zerotier-commit`，供定时比较与问题追踪。冒烟和发布阶段始终使用同一个已解析 ZeroTier commit，避免一次运行中上游分支移动造成不同镜像内容。
 
 ## 安全建议
 

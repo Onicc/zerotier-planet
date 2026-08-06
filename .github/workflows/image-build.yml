@@ -6,7 +6,8 @@ on:
       - master
       - main
   schedule:
-    - cron: '17 */6 * * *'
+    # 19:17 UTC = 03:17 GMT+8. Scheduled runs may be delayed by GitHub.
+    - cron: '17 19 * * *'
   workflow_dispatch:
     inputs:
       platforms:
@@ -39,48 +40,143 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 15
     outputs:
-      zerotier-commit: ${{ steps.zerotier.outputs.commit }}
+      should-build: ${{ steps.changes.outputs.should-build }}
+      reason: ${{ steps.changes.outputs.reason }}
+      zerotier-commit: ${{ steps.changes.outputs.zerotier-commit }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Resolve ZeroTier source commit
-        id: zerotier
+      - name: Decide whether a rebuild is required
+        id: changes
         shell: bash
         run: |
           set -euo pipefail
-          commit="$(git ls-remote https://github.com/zerotier/ZeroTierOne.git "refs/heads/${ZEROTIER_REF}" | cut -f1)"
-          if [ -z "${commit}" ]; then
+
+          zerotier_commit="$(git ls-remote https://github.com/zerotier/ZeroTierOne.git "refs/heads/${ZEROTIER_REF}" | cut -f1)"
+          if [ -z "${zerotier_commit}" ]; then
             echo "Unable to resolve ZeroTier ref: ${ZEROTIER_REF}"
             exit 1
           fi
-          echo "commit=${commit}" >> "$GITHUB_OUTPUT"
-          echo "Resolved ZeroTier ${ZEROTIER_REF} to ${commit}"
+
+          should_build=true
+          reason="${GITHUB_EVENT_NAME} event always validates and publishes"
+          image="${DOCKERHUB_USERNAME}/${IMAGE_NAME}:latest"
+
+          if [ "${GITHUB_EVENT_NAME}" = "schedule" ]; then
+            if [ -z "${DOCKERHUB_USERNAME}" ]; then
+              echo "DOCKERHUB_USERNAME is required to compare the published image."
+              exit 1
+            fi
+
+            repository="${DOCKERHUB_USERNAME,,}/${IMAGE_NAME}"
+            registry_token="$(curl -fsS --retry 3 --connect-timeout 10 \
+              "https://auth.docker.io/token?service=registry.docker.io&scope=repository:${repository}:pull" \
+              | node -e '
+                let raw = "";
+                process.stdin.on("data", chunk => raw += chunk);
+                process.stdin.on("end", () => {
+                  const payload = JSON.parse(raw);
+                  if (!payload.token) throw new Error("Docker registry auth did not return a token");
+                  process.stdout.write(payload.token);
+                });
+              ')"
+
+            # Resolve the amd64 child manifest, then read its image config labels.
+            if published_index="$(curl -fsS --retry 3 --connect-timeout 10 \
+              -H "Authorization: Bearer ${registry_token}" \
+              -H 'Accept: application/vnd.oci.image.index.v1+json, application/vnd.docker.distribution.manifest.list.v2+json, application/vnd.oci.image.manifest.v1+json, application/vnd.docker.distribution.manifest.v2+json' \
+              "https://registry-1.docker.io/v2/${repository}/manifests/latest")"; then
+              platform_digest="$(node -e '
+                const manifest = JSON.parse(process.argv[1]);
+                const child = manifest.manifests?.find(item => item.platform?.os === "linux" && item.platform?.architecture === "amd64");
+                process.stdout.write(child?.digest || "latest");
+              ' "${published_index}")"
+              published_manifest="$(curl -fsS --retry 3 --connect-timeout 10 \
+                -H "Authorization: Bearer ${registry_token}" \
+                -H 'Accept: application/vnd.oci.image.manifest.v1+json, application/vnd.docker.distribution.manifest.v2+json' \
+                "https://registry-1.docker.io/v2/${repository}/manifests/${platform_digest}")"
+              config_digest="$(node -e '
+                const manifest = JSON.parse(process.argv[1]);
+                if (!manifest.config?.digest) throw new Error("Published manifest has no image config");
+                process.stdout.write(manifest.config.digest);
+              ' "${published_manifest}")"
+              image_config="$(curl -fsSL --retry 3 --connect-timeout 10 \
+                -H "Authorization: Bearer ${registry_token}" \
+                "https://registry-1.docker.io/v2/${repository}/blobs/${config_digest}")"
+              published_source="$(node -e '
+                const config = JSON.parse(process.argv[1]);
+                process.stdout.write(config.config?.Labels?.["org.opencontainers.image.revision"] || "");
+              ' "${image_config}")"
+              published_zerotier="$(node -e '
+                const config = JSON.parse(process.argv[1]);
+                process.stdout.write(config.config?.Labels?.["io.zerotier-planet.zerotier-commit"] || "");
+              ' "${image_config}")"
+
+              if [ "${published_source}" = "${GITHUB_SHA}" ] && [ "${published_zerotier}" = "${zerotier_commit}" ]; then
+                should_build=false
+                reason="source and ZeroTier commits already match ${image}"
+              else
+                reason="published source=${published_source:-missing}, current source=${GITHUB_SHA}; published ZeroTier=${published_zerotier:-missing}, current ZeroTier=${zerotier_commit}"
+              fi
+            else
+              reason="${image} is not available yet; an initial build is required"
+            fi
+          fi
+
+          echo "should-build=${should_build}" >> "$GITHUB_OUTPUT"
+          echo "reason=${reason}" >> "$GITHUB_OUTPUT"
+          echo "zerotier-commit=${zerotier_commit}" >> "$GITHUB_OUTPUT"
+          echo "Decision: should-build=${should_build}; ${reason}"
+
+      - name: Record skipped schedule
+        if: steps.changes.outputs.should-build != 'true'
+        shell: bash
+        env:
+          REBUILD_REASON: ${{ steps.changes.outputs.reason }}
+          ZEROTIER_COMMIT: ${{ steps.changes.outputs.zerotier-commit }}
+        run: |
+          {
+            echo "## Docker rebuild skipped"
+            echo
+            echo "The scheduled check found no source changes."
+            echo
+            echo "- Repository commit: \`${GITHUB_SHA}\`"
+            echo "- ZeroTier commit: \`${ZEROTIER_COMMIT}\`"
+            echo "- Reason: ${REBUILD_REASON}"
+          } >> "$GITHUB_STEP_SUMMARY"
 
       - name: Set up Node.js
+        if: steps.changes.outputs.should-build == 'true'
         uses: actions/setup-node@v4
         with:
           node-version: 24
           cache: npm
 
       - name: Install dependencies
+        if: steps.changes.outputs.should-build == 'true'
         run: npm ci --ignore-scripts
 
       - name: Lint
+        if: steps.changes.outputs.should-build == 'true'
         run: npm run lint
 
       - name: Type check
+        if: steps.changes.outputs.should-build == 'true'
         run: npm run typecheck
 
       - name: Unit tests
+        if: steps.changes.outputs.should-build == 'true'
         run: npm test
 
       - name: Build frontend
+        if: steps.changes.outputs.should-build == 'true'
         run: npm run build
 
   image-smoke:
     name: Build and smoke test image
     needs: frontend-quality
+    if: needs.frontend-quality.outputs.should-build == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 90
     steps:
@@ -100,6 +196,9 @@ jobs:
           tags: ${{ env.SMOKE_IMAGE }}
           build-args: |
             TAG=${{ needs.frontend-quality.outputs.zerotier-commit }}
+            SOURCE_COMMIT=${{ github.sha }}
+            ZEROTIER_REF=${{ env.ZEROTIER_REF }}
+            ZEROTIER_COMMIT=${{ needs.frontend-quality.outputs.zerotier-commit }}
           cache-from: |
             type=gha,scope=zerotier-planet-amd64
             type=gha,scope=zerotier-planet-publish
@@ -160,6 +259,8 @@ jobs:
           curl -fsS --max-time 5 "${base_url}/assets/logo.svg" | grep -q '<svg'
           docker exec "${container_name}" test -s /app/dist/planet
           docker exec "${container_name}" test -s /app/portal/dist/index.html
+          test "$(docker inspect --format '{{index .Config.Labels "org.opencontainers.image.revision"}}' "${container_name}")" = "${GITHUB_SHA}"
+          test "$(docker inspect --format '{{index .Config.Labels "io.zerotier-planet.zerotier-commit"}}' "${container_name}")" = "${{ needs.frontend-quality.outputs.zerotier-commit }}"
 
       - name: Show smoke test logs
         if: always() && steps.smoke.outputs.container_name != ''
@@ -229,6 +330,8 @@ jobs:
             org.opencontainers.image.description=Self-hosted ZeroTier Planet root server and management console
             org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
             org.opencontainers.image.revision=${{ github.sha }}
+            io.zerotier-planet.zerotier-ref=${{ env.ZEROTIER_REF }}
+            io.zerotier-planet.zerotier-commit=${{ needs.frontend-quality.outputs.zerotier-commit }}
 
       - name: Build and push
         id: push
@@ -241,6 +344,9 @@ jobs:
           labels: ${{ steps.meta.outputs.labels }}
           build-args: |
             TAG=${{ needs.frontend-quality.outputs.zerotier-commit }}
+            SOURCE_COMMIT=${{ github.sha }}
+            ZEROTIER_REF=${{ env.ZEROTIER_REF }}
+            ZEROTIER_COMMIT=${{ needs.frontend-quality.outputs.zerotier-commit }}
           cache-from: |
             type=gha,scope=zerotier-planet-amd64
             type=gha,scope=zerotier-planet-publish
