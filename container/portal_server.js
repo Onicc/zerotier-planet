@@ -10,6 +10,7 @@ const ztHome = process.env.ZT_HOME || '/var/lib/zerotier-one';
 const configPath = path.join(appPath, 'config');
 const distPath = path.join(appPath, 'dist');
 const portalPath = path.join(appPath, 'portal');
+const portalDistPath = path.join(portalPath, 'dist');
 const assetsPath = path.join(portalPath, 'assets');
 const secretKeyPath = path.join(configPath, 'file_server.key');
 const adminAuthPath = path.join(configPath, 'admin_auth.json');
@@ -611,12 +612,14 @@ function serveStatic(req, res, parsedUrl) {
     requestPath = '/index.html';
   }
 
-  const rootPath = requestPath.startsWith('/assets/') ? assetsPath : portalPath;
-  const relativePath = requestPath.startsWith('/assets/') ? requestPath.replace(/^\/assets\//, '') : requestPath;
+  const distCandidate = path.join(portalDistPath, requestPath.replace(/^\/+/, ''));
+  const isSharedAsset = requestPath.startsWith('/assets/') && !fs.existsSync(distCandidate) && fs.existsSync(assetsPath);
+  const rootPath = isSharedAsset ? assetsPath : portalDistPath;
+  const relativePath = isSharedAsset ? requestPath.replace(/^\/assets\//, '') : requestPath.replace(/^\/+/, '');
   let filePath = path.normalize(path.join(rootPath, relativePath));
 
-  if ((!fs.existsSync(filePath) || fs.statSync(filePath).isDirectory()) && req.method === 'GET' && !path.extname(requestPath)) {
-    filePath = path.join(portalPath, 'index.html');
+  if ((!fs.existsSync(filePath) || fs.statSync(filePath).isDirectory()) && ['GET', 'HEAD'].includes(req.method) && !path.extname(requestPath)) {
+    filePath = path.join(portalDistPath, 'index.html');
   }
 
   if (!isInsidePath(rootPath, filePath)) {
@@ -630,11 +633,17 @@ function serveStatic(req, res, parsedUrl) {
   const mimeTypes = {
     '.html': 'text/html; charset=utf-8',
     '.js': 'text/javascript; charset=utf-8',
+    '.mjs': 'text/javascript; charset=utf-8',
     '.css': 'text/css; charset=utf-8',
     '.json': 'application/json; charset=utf-8',
     '.svg': 'image/svg+xml',
     '.png': 'image/png',
     '.jpg': 'image/jpeg',
+    '.jpeg': 'image/jpeg',
+    '.webp': 'image/webp',
+    '.woff': 'font/woff',
+    '.woff2': 'font/woff2',
+    '.map': 'application/json; charset=utf-8',
   };
   const contentType = mimeTypes[extname] || 'application/octet-stream';
   const cacheControl = ['.html', '.js', '.css'].includes(extname)
@@ -645,6 +654,10 @@ function serveStatic(req, res, parsedUrl) {
     'Content-Type': contentType,
     'Cache-Control': cacheControl,
   });
+  if (req.method === 'HEAD') {
+    res.end();
+    return true;
+  }
   fs.createReadStream(filePath).pipe(res);
   return true;
 }

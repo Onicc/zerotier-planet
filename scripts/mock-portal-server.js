@@ -7,6 +7,7 @@ const url = require('url');
 
 const repoRoot = path.resolve(__dirname, '..');
 const portalPath = path.join(repoRoot, 'portal');
+const portalDistPath = path.join(portalPath, 'dist');
 const assetsPath = path.join(portalPath, 'assets');
 const port = Number(process.env.MOCK_PORT || process.env.PORT || 3001);
 const bindHost = process.env.MOCK_HOST || '127.0.0.1';
@@ -188,15 +189,17 @@ function serveStatic(req, res, parsedUrl) {
     return false;
   }
 
-  let requestPath = parsedUrl.pathname === '/' ? '/index.html' : parsedUrl.pathname;
-  const rootPath = requestPath.startsWith('/assets/') ? assetsPath : portalPath;
-  const relativePath = requestPath.startsWith('/assets/')
+  const requestPath = parsedUrl.pathname === '/' ? '/index.html' : parsedUrl.pathname;
+  const distCandidate = path.join(portalDistPath, requestPath.replace(/^\/+/, ''));
+  const isSharedAsset = requestPath.startsWith('/assets/') && !fs.existsSync(distCandidate) && fs.existsSync(assetsPath);
+  const rootPath = isSharedAsset ? assetsPath : portalDistPath;
+  const relativePath = isSharedAsset
     ? requestPath.replace(/^\/assets\//, '')
-    : requestPath.replace(/^\//, '');
+    : requestPath.replace(/^\/+/, '');
   let filePath = path.normalize(path.join(rootPath, relativePath));
 
   if ((!fs.existsSync(filePath) || fs.statSync(filePath).isDirectory()) && !path.extname(requestPath)) {
-    filePath = path.join(portalPath, 'index.html');
+    filePath = path.join(portalDistPath, 'index.html');
   }
 
   const relative = path.relative(rootPath, filePath);
@@ -211,9 +214,16 @@ function serveStatic(req, res, parsedUrl) {
   const mimeTypes = {
     '.html': 'text/html; charset=utf-8',
     '.js': 'text/javascript; charset=utf-8',
+    '.mjs': 'text/javascript; charset=utf-8',
     '.css': 'text/css; charset=utf-8',
+    '.json': 'application/json; charset=utf-8',
     '.png': 'image/png',
+    '.jpg': 'image/jpeg',
+    '.jpeg': 'image/jpeg',
     '.svg': 'image/svg+xml',
+    '.webp': 'image/webp',
+    '.woff': 'font/woff',
+    '.woff2': 'font/woff2',
   };
   const contentType = mimeTypes[extname] || 'application/octet-stream';
   res.writeHead(200, {

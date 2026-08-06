@@ -6,4 +6,8 @@
 data
 *.log
 node_modules
+portal/dist
+coverage
+*.tsbuildinfo
 npm-debug.log
+.claude

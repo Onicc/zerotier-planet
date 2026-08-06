@@ -1,4 +1,4 @@
-name: Build and Push Docker Image
+name: Build and Publish Docker Image
 
 on:
   push:
@@ -6,33 +6,187 @@ on:
       - master
       - main
   schedule:
-    - cron: '0 */6 * * *'
+    - cron: '17 */6 * * *'
   workflow_dispatch:
     inputs:
       platforms:
-        description: Docker platforms to build
+        description: Docker platforms to publish
         required: false
-        default: linux/amd64
+        type: choice
+        default: linux/amd64,linux/arm64
+        options:
+          - linux/amd64,linux/arm64
+          - linux/amd64
+          - linux/arm64
+
+permissions:
+  contents: read
+
+concurrency:
+  group: image-publish-${{ github.ref }}
+  cancel-in-progress: true
 
 env:
   IMAGE_NAME: zerotier-planet
   DOCKERHUB_USERNAME: ${{ vars.DOCKERHUB_USERNAME || secrets.DOCKERHUB_USERNAME }}
   ZEROTIER_REF: actions
-  DOCKER_PLATFORMS: ${{ github.event.inputs.platforms || 'linux/amd64' }}
+  DOCKER_PLATFORMS: ${{ inputs.platforms || 'linux/amd64,linux/arm64' }}
+  SMOKE_IMAGE: zerotier-planet:ci-smoke
 
 jobs:
-  build:
+  frontend-quality:
+    name: Frontend quality
     runs-on: ubuntu-latest
+    timeout-minutes: 15
+    outputs:
+      zerotier-commit: ${{ steps.zerotier.outputs.commit }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Set up QEMU
-        if: contains(env.DOCKER_PLATFORMS, ',')
-        uses: docker/setup-qemu-action@v3
+      - name: Resolve ZeroTier source commit
+        id: zerotier
+        shell: bash
+        run: |
+          set -euo pipefail
+          commit="$(git ls-remote https://github.com/zerotier/ZeroTierOne.git "refs/heads/${ZEROTIER_REF}" | cut -f1)"
+          if [ -z "${commit}" ]; then
+            echo "Unable to resolve ZeroTier ref: ${ZEROTIER_REF}"
+            exit 1
+          fi
+          echo "commit=${commit}" >> "$GITHUB_OUTPUT"
+          echo "Resolved ZeroTier ${ZEROTIER_REF} to ${commit}"
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci --ignore-scripts
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Type check
+        run: npm run typecheck
+
+      - name: Unit tests
+        run: npm test
+
+      - name: Build frontend
+        run: npm run build
+
+  image-smoke:
+    name: Build and smoke test image
+    needs: frontend-quality
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
+
+      - name: Build local amd64 image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          platforms: linux/amd64
+          load: true
+          push: false
+          tags: ${{ env.SMOKE_IMAGE }}
+          build-args: |
+            TAG=${{ needs.frontend-quality.outputs.zerotier-commit }}
+          cache-from: |
+            type=gha,scope=zerotier-planet-amd64
+            type=gha,scope=zerotier-planet-publish
+          cache-to: type=gha,mode=max,scope=zerotier-planet-amd64
+
+      - name: Start image and verify console
+        id: smoke
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          container_name="ztp-ci-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          volume_name="ztp-ci-data-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          echo "container_name=${container_name}" >> "$GITHUB_OUTPUT"
+          echo "volume_name=${volume_name}" >> "$GITHUB_OUTPUT"
+
+          docker volume create "${volume_name}" >/dev/null
+          docker run -d \
+            --name "${container_name}" \
+            -p 127.0.0.1::3000 \
+            -e IP_ADDR4=127.0.0.1 \
+            -e IP_ADDR6= \
+            -e ZT_PORT=9994 \
+            -e FILE_SERVER_PORT=3000 \
+            -v "${volume_name}:/var/lib/zerotier-one" \
+            "${SMOKE_IMAGE}" >/dev/null
+
+          host_port="$(docker port "${container_name}" 3000/tcp | sed -n 's/.*://p' | tail -n 1)"
+          test -n "${host_port}"
+          base_url="http://127.0.0.1:${host_port}"
+
+          for attempt in $(seq 1 90); do
+            if ! docker inspect --format '{{.State.Running}}' "${container_name}" | grep -q '^true$'; then
+              echo "Container exited before the console became ready."
+              docker logs "${container_name}" || true
+              exit 1
+            fi
+            if curl -fsS --max-time 3 "${base_url}/api/status" > /tmp/ztp-status.json; then
+              break
+            fi
+            if [ "${attempt}" -eq 90 ]; then
+              echo "Console did not become ready within 90 seconds."
+              exit 1
+            fi
+            sleep 1
+          done
+
+          node -e '
+            const fs = require("fs");
+            const status = JSON.parse(fs.readFileSync("/tmp/ztp-status.json", "utf8"));
+            if (status.service !== "zerotier-planet" || status.integratedController !== true) {
+              throw new Error(`Unexpected status response: ${JSON.stringify(status)}`);
+            }
+          '
+
+          curl -fsS --max-time 5 "${base_url}/" | grep -q '<div id="root"></div>'
+          curl -fsS --max-time 5 "${base_url}/networks" | grep -q '<div id="root"></div>'
+          curl -fsS --max-time 5 "${base_url}/assets/logo.svg" | grep -q '<svg'
+          docker exec "${container_name}" test -s /app/dist/planet
+          docker exec "${container_name}" test -s /app/portal/dist/index.html
+
+      - name: Show smoke test logs
+        if: always() && steps.smoke.outputs.container_name != ''
+        shell: bash
+        run: docker logs "${{ steps.smoke.outputs.container_name }}" || true
+
+      - name: Clean up smoke test
+        if: always()
+        shell: bash
+        run: |
+          if [ -n "${{ steps.smoke.outputs.container_name }}" ]; then
+            docker rm -fv "${{ steps.smoke.outputs.container_name }}" >/dev/null 2>&1 || true
+          fi
+          if [ -n "${{ steps.smoke.outputs.volume_name }}" ]; then
+            docker volume rm "${{ steps.smoke.outputs.volume_name }}" >/dev/null 2>&1 || true
+          fi
+
+  publish:
+    name: Publish multi-platform image
+    needs:
+      - frontend-quality
+      - image-smoke
+    runs-on: ubuntu-latest
+    timeout-minutes: 180
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
 
       - name: Validate Docker Hub credentials
         shell: bash
@@ -49,22 +203,65 @@ jobs:
             exit 1
           fi
 
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
       - name: Login to Docker Hub
         uses: docker/login-action@v3
         with:
           username: ${{ env.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
 
+      - name: Generate image metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.DOCKERHUB_USERNAME }}/${{ env.IMAGE_NAME }}
+          tags: |
+            type=raw,value=latest,enable=${{ env.DOCKER_PLATFORMS == 'linux/amd64,linux/arm64' }}
+            type=raw,value=${{ env.ZEROTIER_REF }},enable=${{ env.DOCKER_PLATFORMS == 'linux/amd64,linux/arm64' }}
+            type=sha,prefix=sha-,format=short
+          labels: |
+            org.opencontainers.image.title=ZeroTier Planet
+            org.opencontainers.image.description=Self-hosted ZeroTier Planet root server and management console
+            org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
+            org.opencontainers.image.revision=${{ github.sha }}
+
       - name: Build and push
+        id: push
         uses: docker/build-push-action@v6
         with:
           context: .
           platforms: ${{ env.DOCKER_PLATFORMS }}
           push: true
-          tags: |
-            ${{ env.DOCKERHUB_USERNAME }}/${{ env.IMAGE_NAME }}:latest
-            ${{ env.DOCKERHUB_USERNAME }}/${{ env.IMAGE_NAME }}:${{ env.ZEROTIER_REF }}
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
           build-args: |
-            TAG=${{ env.ZEROTIER_REF }}
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
+            TAG=${{ needs.frontend-quality.outputs.zerotier-commit }}
+          cache-from: |
+            type=gha,scope=zerotier-planet-amd64
+            type=gha,scope=zerotier-planet-publish
+          cache-to: type=gha,mode=max,scope=zerotier-planet-publish
+          provenance: mode=max
+          sbom: true
+
+      - name: Publish summary
+        shell: bash
+        run: |
+          {
+            echo "## Docker image published"
+            echo
+            echo "- Repository: \`${DOCKERHUB_USERNAME}/${IMAGE_NAME}\`"
+            echo "- Platforms: \`${DOCKER_PLATFORMS}\`"
+            echo "- ZeroTier ref: \`${ZEROTIER_REF}\`"
+            echo "- ZeroTier commit: \`${{ needs.frontend-quality.outputs.zerotier-commit }}\`"
+            echo "- Digest: \`${{ steps.push.outputs.digest }}\`"
+            echo
+            echo "### Tags"
+            echo '```text'
+            echo "${{ steps.meta.outputs.tags }}"
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"

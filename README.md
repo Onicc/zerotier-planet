@@ -233,6 +233,66 @@ docker pull onicc/zerotier-planet:latest
 docker restart myztplanet
 ```
 
+## 前端开发
+
+统一控制台已使用 React、TypeScript、Vite、Ant Design 和 TanStack Query 重构。生产构建由 Docker 多阶段构建自动完成，普通部署命令保持不变。
+
+本地开发要求 Node.js 22+ 和 npm 10+：
+
+```bash
+npm install
+```
+
+启动带示例数据的 Mock API（终端 1）：
+
+```bash
+npm run mock
+```
+
+启动 Vite 开发服务器（终端 2）：
+
+```bash
+npm run dev
+```
+
+然后访问 `http://127.0.0.1:5173`，使用 `admin / mock123456` 登录。
+
+常用质量检查：
+
+```bash
+npm run lint
+npm run typecheck
+npm test
+npm run build
+```
+
+`npm run build` 将静态资源输出到 `portal/dist/`。Mock 与生产 Node 服务都支持 SPA 深层路由回退，同时保持 `/api/*`、下载和安装脚本路由独立。
+
+## CI/CD 与镜像发布
+
+推送到 `master` 或 `main` 后，`.github/workflows/image-build.yml` 会按以下顺序执行：
+
+1. 使用 Node.js 24 运行前端 lint、类型检查、单元测试和生产构建
+2. 构建 `linux/amd64` 成品镜像并实际启动容器，检查控制台 API、React SPA、深层路由、Logo 和 Planet 文件
+3. 只有前两步成功后，才向 Docker Hub 发布 `linux/amd64` 与 `linux/arm64` 多架构镜像
+
+需要在 GitHub 仓库中配置：
+
+- Repository Variable 或 Secret：`DOCKERHUB_USERNAME`
+- Repository Secret：`DOCKERHUB_TOKEN`（建议使用仅允许读写对应仓库的 Docker Hub Access Token）
+
+每次成功发布会生成以下标签：
+
+| 标签 | 用途 |
+| --- | --- |
+| `latest` | 默认稳定部署标签，多架构 |
+| `actions` | 与当前 ZeroTier `actions` 源码通道兼容的标签 |
+| `sha-<commit>` | 对应本仓库提交的不可变回滚标签 |
+
+可以从 GitHub Actions 手动运行工作流，并选择只发布 `linux/amd64`、只发布 `linux/arm64` 或默认双架构。为防止单架构构建破坏稳定标签，`latest` 和 `actions` 只在默认双架构发布时更新；手动单架构排障仅发布对应的 `sha-*` 标签。发布摘要会记录实际平台、解析后的 ZeroTier 上游 commit 和镜像 digest。
+
+定时任务约每 6 小时运行一次，用于跟进 ZeroTier `actions` 分支。工作流会在开始时将该分支解析为具体 commit，并在冒烟和发布阶段使用同一个 commit，避免一次运行中上游分支移动造成不同镜像内容。
+
 ## 安全建议
 
 - 首次登录后立即完成强制改密

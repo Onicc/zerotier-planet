@@ -233,6 +233,66 @@ Restart the container:
 docker restart myztplanet
 ```
 
+## Frontend Development
+
+The unified console has been rebuilt with React, TypeScript, Vite, Ant Design, and TanStack Query. The production bundle is generated automatically by the Docker multi-stage build, so normal deployment commands are unchanged.
+
+Local development requires Node.js 22+ and npm 10+:
+
+```bash
+npm install
+```
+
+Start the mock API with sample data (terminal 1):
+
+```bash
+npm run mock
+```
+
+Start the Vite development server (terminal 2):
+
+```bash
+npm run dev
+```
+
+Open `http://127.0.0.1:5173` and sign in with `admin / mock123456`.
+
+Quality checks:
+
+```bash
+npm run lint
+npm run typecheck
+npm test
+npm run build
+```
+
+`npm run build` writes static assets to `portal/dist/`. Both the mock and production Node servers provide SPA fallback for deep routes while keeping `/api/*`, download, and installer routes separate.
+
+## CI/CD and Image Publishing
+
+A push to `master` or `main` runs `.github/workflows/image-build.yml` in this order:
+
+1. Use Node.js 24 to run frontend linting, type checks, unit tests, and the production build
+2. Build an amd64 production image and start it as a real container, checking the console API, React SPA, deep-route fallback, logo, and generated Planet file
+3. Publish the `linux/amd64` and `linux/arm64` multi-platform image to Docker Hub only after both checks pass
+
+Configure these values in the GitHub repository:
+
+- Repository Variable or Secret: `DOCKERHUB_USERNAME`
+- Repository Secret: `DOCKERHUB_TOKEN` (prefer a Docker Hub access token limited to read/write access for this repository)
+
+Every successful publication creates:
+
+| Tag | Purpose |
+| --- | --- |
+| `latest` | Default stable deployment tag, published as a multi-platform manifest |
+| `actions` | Compatibility tag for the current ZeroTier `actions` source channel |
+| `sha-<commit>` | Immutable rollback tag for this repository commit |
+
+The workflow can also be started manually from GitHub Actions and limited to `linux/amd64`, `linux/arm64`, or the default dual-platform build. To prevent a single-platform build from replacing stable tags, `latest` and `actions` are updated only by the default dual-platform publication; a manual single-platform diagnostic run publishes only its `sha-*` tag. The job summary records the platforms, resolved upstream ZeroTier commit, and final image digest.
+
+The scheduled build runs approximately every six hours to follow ZeroTier's `actions` branch. At the start of each workflow run that branch is resolved to a concrete commit, and the same commit is used for the smoke and publish stages so an upstream branch update cannot change image contents midway through one run.
+
 ## Security Recommendations
 
 - Complete the forced password reset after the first sign-in

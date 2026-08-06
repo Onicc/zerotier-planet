@@ -2,3 +2,7 @@
 /data
 .DS_Store
 .vscode
+node_modules/
+coverage/
+portal/dist/
+*.tsbuildinfo
