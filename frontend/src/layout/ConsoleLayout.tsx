@@ -1,24 +1,22 @@
 import {
   BookOutlined, DashboardOutlined, DeploymentUnitOutlined, DownloadOutlined, GlobalOutlined,
-  LogoutOutlined, MenuFoldOutlined, MenuUnfoldOutlined, MoonOutlined, SettingOutlined, SunOutlined,
-  TranslationOutlined, UserOutlined,
+  LogoutOutlined, MenuFoldOutlined, MenuUnfoldOutlined, SettingOutlined, UserOutlined,
 } from '@ant-design/icons';
-import { App, Button, Drawer, Dropdown, Grid, Layout, Menu, Space, Tooltip } from 'antd';
+import { App, Button, Drawer, Grid, Layout, Menu, Space, Tooltip } from 'antd';
 import { useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Outlet, useLocation, useNavigate } from 'react-router';
 import { useAuth } from '@/auth/AuthProvider';
-import { useThemeMode } from '@/theme/ThemeProvider';
+import { AppearanceControls } from '@/components/common/AppearanceControls';
 
 const { Sider, Content } = Layout;
 
 export function ConsoleLayout() {
-  const { t, i18n } = useTranslation();
+  const { t } = useTranslation();
   const { message } = App.useApp();
   const location = useLocation();
   const navigate = useNavigate();
   const auth = useAuth();
-  const theme = useThemeMode();
   const screens = Grid.useBreakpoint();
   const mobile = !screens.md;
   const [collapsed, setCollapsed] = useState(() => localStorage.getItem('ztp_sidebar_collapsed') === '1');
@@ -64,16 +62,9 @@ export function ConsoleLayout() {
               onClick={() => mobile ? setDrawerOpen(true) : changeCollapsed()} aria-label="Menu" />
             <span className="topbar-context"><DeploymentUnitOutlined /> {t('common.console')}</span>
           </Space>
-          <Space size={4}>
-            <Tooltip title={theme.isDark ? t('settings.light') : t('settings.dark')}>
-              <Button type="text" shape="circle" icon={theme.isDark ? <SunOutlined /> : <MoonOutlined />}
-                onClick={() => theme.setMode(theme.isDark ? 'light' : 'dark')} />
-            </Tooltip>
-            <Dropdown menu={{ items: [
-              { key: 'en', label: 'English' }, { key: 'zh-CN', label: '中文' },
-            ], selectedKeys: [i18n.language], onClick: ({ key }) => void i18n.changeLanguage(key) }}>
-              <Button type="text" shape="circle" icon={<TranslationOutlined />} aria-label={t('settings.language')} />
-            </Dropdown>
+          <Space size={6} className="topbar-tools">
+            <AppearanceControls kind="theme" compact />
+            <AppearanceControls kind="language" compact />
             <Tooltip title={t('common.logout')}>
               <Button type="text" shape="circle" icon={<LogoutOutlined />} onClick={() => void auth.logout().catch((error) => void message.error(error.message))} />
             </Tooltip>

@@ -1,5 +1,5 @@
 import { DeleteOutlined, ExperimentOutlined, SafetyCertificateOutlined } from '@ant-design/icons';
-import { App, Button, Card, Col, Form, Input, InputNumber, Row, Space, Switch } from 'antd';
+import { App, Button, Card, Col, Form, Input, InputNumber, Row, Switch } from 'antd';
 import { useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router';
@@ -40,22 +40,22 @@ export function ConfigurationPanel({ bundle }: { bundle: NetworkBundle }) {
   };
   const confirmDelete = () => modal.confirm({ title: t('networks.deleteNetworkTitle', { name: bundle.network.name || nwid }), content: t('networks.deleteNetworkBody'), okText: t('networks.deleteNetwork'), okButtonProps: { danger: true }, onOk: () => remove.mutateAsync() });
 
-  return <Row gutter={[16, 16]}>
-    <Col xs={24} xl={12}><SectionCard title={<><SafetyCertificateOutlined /> {t('networks.basics')}</>}><Form form={basicsForm} layout="vertical" onFinish={(values) => saveBasics.mutate(values)}>
+  return <div className="configuration-grid">
+    <SectionCard fill title={<><SafetyCertificateOutlined /> {t('networks.basics')}</>}><Form form={basicsForm} layout="vertical" onFinish={(values) => saveBasics.mutate(values)}>
       <Form.Item name="name" label={t('common.name')} rules={[{ required: true, whitespace: true, message: t('validation.required') }]}><Input /></Form.Item>
       <Form.Item name="mtu" label={t('networks.mtu')} rules={[{ required: true, message: t('validation.required') }, { type: 'number', min: MTU_MIN, max: MTU_MAX, message: t('validation.mtu') }]}><InputNumber min={MTU_MIN} max={MTU_MAX} style={{ width: '100%' }} /></Form.Item>
       <Form.Item><div className="switch-field"><span><strong>{t('networks.privateNetwork')}</strong><small>{t('networks.privateCopy')}</small></span><Form.Item name="private" valuePropName="checked" noStyle><Switch /></Form.Item></div></Form.Item>
-      <Button htmlType="submit" type="primary" loading={saveBasics.isPending}>{t('common.save')}</Button>
-    </Form></SectionCard></Col>
-    <Col xs={24} xl={12}><SectionCard title={<><ExperimentOutlined /> {t('networks.easySetup')}</>}><p className="section-description">{t('networks.easyCopy')}</p><Form form={easyForm} layout="vertical" onFinish={(values) => easy.mutate(values)}>
+      <div className="form-actions"><Button htmlType="submit" type="primary" loading={saveBasics.isPending}>{t('common.save')}</Button></div>
+    </Form></SectionCard>
+    <SectionCard fill title={<><ExperimentOutlined /> {t('networks.easySetup')}</>}><p className="section-description">{t('networks.easyCopy')}</p><Form form={easyForm} layout="vertical" onFinish={(values) => easy.mutate(values)}>
       <Form.Item name="cidr" label={t('networks.cidr')} rules={[{ validator: (_, value) => defaultPoolForCidr(value) ? Promise.resolve() : Promise.reject(new Error(t('validation.cidr'))) }]}><Input onBlur={updatePoolDefaults} /></Form.Item>
       <Row gutter={12}><Col span={12}><Form.Item name="poolStart" label={t('networks.poolStart')}><Input /></Form.Item></Col><Col span={12}><Form.Item name="poolEnd" label={t('networks.poolEnd')} dependencies={['cidr', 'poolStart']} rules={[{ validator: () => { const values = easyForm.getFieldsValue(); const key = poolRangeError(values.cidr, values.poolStart, values.poolEnd); return key ? Promise.reject(new Error(t(key))) : Promise.resolve(); } }]}><Input /></Form.Item></Col></Row>
-      <Button htmlType="submit" type="primary" loading={easy.isPending}>{t('networks.applyEasy')}</Button>
-    </Form></SectionCard></Col>
-    <Col xs={24} xl={12}><SectionCard title={t('networks.addressAssignment')}><Form form={assignForm} onFinish={(values) => saveAssign.mutate(values)} className="switch-form">
+      <div className="form-actions"><Button htmlType="submit" type="primary" loading={easy.isPending}>{t('networks.applyEasy')}</Button></div>
+    </Form></SectionCard>
+    <SectionCard fill title={t('networks.addressAssignment')}><Form form={assignForm} onFinish={(values) => saveAssign.mutate(values)} className="switch-form">
       {[['ipv4', 'networks.ipv4'], ['plane', 'networks.ipv6Plane'], ['rfc', 'networks.ipv6Rfc'], ['zt', 'networks.ipv6Zt']].map(([name, label]) => <Form.Item key={name}><div className="switch-field"><strong>{t(label)}</strong><Form.Item name={name} valuePropName="checked" noStyle><Switch /></Form.Item></div></Form.Item>)}
-      <Button htmlType="submit" type="primary" loading={saveAssign.isPending}>{t('common.save')}</Button>
-    </Form></SectionCard></Col>
-    <Col xs={24} xl={12}><Card bordered={false} className="danger-card"><Space direction="vertical" size="middle"><div><h3>{t('networks.danger')}</h3><p>{t('networks.dangerCopy')}</p></div><Button danger type="primary" icon={<DeleteOutlined />} loading={remove.isPending} onClick={confirmDelete}>{t('networks.deleteNetwork')}</Button></Space></Card></Col>
-  </Row>;
+      <div className="form-actions"><Button htmlType="submit" type="primary" loading={saveAssign.isPending}>{t('common.save')}</Button></div>
+    </Form></SectionCard>
+    <Card bordered={false} className="danger-card compact-danger-zone"><div><h3>{t('networks.danger')}</h3><p>{t('networks.dangerCopy')}</p></div><Button danger type="primary" icon={<DeleteOutlined />} loading={remove.isPending} onClick={confirmDelete}>{t('networks.deleteNetwork')}</Button></Card>
+  </div>;
 }

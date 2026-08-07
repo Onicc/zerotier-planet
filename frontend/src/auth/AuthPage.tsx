@@ -1,7 +1,8 @@
 import { LockOutlined, SafetyCertificateOutlined, UserOutlined } from '@ant-design/icons';
-import { Alert, App, Button, Form, Input, Segmented, Spin } from 'antd';
+import { Alert, App, Button, Form, Input, Spin } from 'antd';
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
+import { AppearanceControls } from '@/components/common/AppearanceControls';
 import { useAuth } from './AuthProvider';
 
 function validPassword(value: string) {
@@ -9,7 +10,7 @@ function validPassword(value: string) {
 }
 
 export function AuthPage() {
-  const { t, i18n } = useTranslation();
+  const { t } = useTranslation();
   const { message } = App.useApp();
   const auth = useAuth();
   const [loginForm] = Form.useForm();
@@ -55,8 +56,8 @@ export function AuthPage() {
       </section>
       <section className="auth-form-panel">
         <div className="auth-form-toolbar">
-          <Segmented size="small" value={i18n.language} onChange={(value) => void i18n.changeLanguage(String(value))}
-            options={[{ label: 'EN', value: 'en' }, { label: '中文', value: 'zh-CN' }]} />
+          <AppearanceControls kind="theme" compact />
+          <AppearanceControls kind="language" compact />
         </div>
         <div className="auth-form-wrap">
           <div className="auth-mobile-brand"><img src="/assets/logo.svg" alt="" /><span>{t('common.appName')}</span></div>

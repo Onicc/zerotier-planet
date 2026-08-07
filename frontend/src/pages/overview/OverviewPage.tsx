@@ -2,10 +2,11 @@ import {
   ApiOutlined, CheckCircleOutlined, CloudServerOutlined, DeploymentUnitOutlined, DownloadOutlined,
   ExclamationCircleOutlined, GlobalOutlined, SafetyCertificateOutlined, TeamOutlined,
 } from '@ant-design/icons';
-import { Button, Card, Col, Descriptions, Progress, Row, Space, Table } from 'antd';
+import { Button, Card, Progress, Space, Table, Tooltip } from 'antd';
 import { useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router';
+import { CopyButton } from '@/components/common/CopyButton';
 import { ErrorState, LoadingState } from '@/components/common/AsyncState';
 import { PageHeader } from '@/components/common/PageHeader';
 import { SectionCard } from '@/components/common/SectionCard';
@@ -66,58 +67,50 @@ export function OverviewPage() {
         <Space wrap><StatusBadge tone={summary.pending ? 'warning' : 'success'} label={`${summary.pending} ${t('overview.pending')}`} /><StatusBadge tone="processing" label={`${controller?.networks.length || 0} ${t('common.networks')}`} /></Space>
       </section>
 
-      <Row gutter={[16, 16]}>
-        <Col xs={24} sm={12} xl={6}><StatCard label={t('overview.planet')} value={t(overview?.hasPlanet ? 'common.ready' : 'common.missing')} icon={<DeploymentUnitOutlined />} tone={overview?.hasPlanet ? 'success' : 'danger'} detail={overview?.hasPlanet ? t('overview.planetReady') : t('overview.planetMissing')} /></Col>
-        <Col xs={24} sm={12} xl={6}><StatCard label={t('overview.api')} value={t(controller?.status.online ? 'common.online' : 'common.available')} icon={<ApiOutlined />} tone={controller?.status ? 'success' : 'danger'} detail={controller?.status.address || '—'} /></Col>
-        <Col xs={24} sm={12} xl={6}><StatCard label={t('overview.networkCount')} value={controller?.networks.length || 0} icon={<GlobalOutlined />} detail={`${summary.routes} ${t('overview.routes')}`} /></Col>
-        <Col xs={24} sm={12} xl={6}><StatCard label={t('overview.members')} value={summary.members} icon={<TeamOutlined />} tone={summary.pending ? 'warning' : 'default'} detail={`${summary.authorized} ${t('overview.authorized')}`} /></Col>
-      </Row>
+      <section className="stats-grid">
+        <StatCard label={t('overview.planet')} value={t(overview?.hasPlanet ? 'common.ready' : 'common.missing')} icon={<DeploymentUnitOutlined />} tone={overview?.hasPlanet ? 'success' : 'danger'} detail={overview?.hasPlanet ? t('overview.planetReady') : t('overview.planetMissing')} />
+        <StatCard label={t('overview.api')} value={t(controller?.status.online ? 'common.online' : 'common.available')} icon={<ApiOutlined />} tone={controller?.status ? 'success' : 'danger'} detail={controller?.status.address || '—'} />
+        <StatCard label={t('overview.networkCount')} value={controller?.networks.length || 0} icon={<GlobalOutlined />} detail={`${summary.routes} ${t('overview.routes')}`} />
+        <StatCard label={t('overview.members')} value={summary.members} icon={<TeamOutlined />} tone={summary.pending ? 'warning' : 'default'} detail={`${summary.authorized} ${t('overview.authorized')}`} />
+      </section>
 
-      <Row gutter={[16, 16]}>
-        <Col xs={24} xl={9}>
-          <SectionCard title={<><SafetyCertificateOutlined /> {t('overview.readiness')}</>}>
+      <section className="overview-primary-grid">
+        <SectionCard fill title={<><SafetyCertificateOutlined /> {t('overview.readiness')}</>}>
             <div className="readiness-score"><Progress type="circle" percent={readinessPercent} size={118} /><div className="readiness-list">
               <div>{overview?.hasPlanet ? <CheckCircleOutlined /> : <ExclamationCircleOutlined />}<span><strong>{t('overview.planet')}</strong><small>{t(overview?.hasPlanet ? 'overview.planetReady' : 'overview.planetMissing')}</small></span></div>
               <div>{controller?.status ? <CheckCircleOutlined /> : <ExclamationCircleOutlined />}<span><strong>{t('overview.api')}</strong><small>{t(controller?.status ? 'overview.controllerReady' : 'overview.controllerMissing')}</small></span></div>
               <div>{controller?.networks.length ? <CheckCircleOutlined /> : <ExclamationCircleOutlined />}<span><strong>{t('overview.networkCount')}</strong><small>{controller?.networks.length ? t('overview.networkReady', { count: controller.networks.length }) : t('overview.networkMissing')}</small></span></div>
             </div></div>
-          </SectionCard>
-        </Col>
-        <Col xs={24} xl={15}>
-          <SectionCard title={t('overview.history')} extra={<span className="section-hint">{t('overview.historyHint')}</span>}>
-            {history.length < 2 ? <div className="trend-empty">{t('overview.noHistory')}</div> : <div className="trend-grid">
+        </SectionCard>
+        <SectionCard fill title={t('overview.history')} extra={<span className="section-hint">{t('overview.historyHint')}</span>}>
+            {history.length < 2 ? <div className="trend-empty compact-empty">{t('overview.noHistory')}</div> : <div className="trend-grid">
               <Sparkline values={history.map((item) => item.networks)} label={t('overview.networkCount')} color="#2563eb" />
               <Sparkline values={history.map((item) => item.members)} label={t('overview.members')} color="#7c3aed" />
               <Sparkline values={history.map((item) => item.pending)} label={t('overview.pending')} color="#d97706" />
             </div>}
             <div className="sr-only"><table><caption>{t('overview.history')}</caption><thead><tr><th>{t('overview.networkCount')}</th><th>{t('overview.members')}</th><th>{t('overview.pending')}</th></tr></thead><tbody>{history.map((point, index) => <tr key={index}><td>{point.networks}</td><td>{point.members}</td><td>{point.pending}</td></tr>)}</tbody></table></div>
-          </SectionCard>
-        </Col>
-      </Row>
+        </SectionCard>
+      </section>
 
-      <Row gutter={[16, 16]}>
-        <Col xs={24} xl={15}>
-          <SectionCard title={t('overview.recent')} extra={<Button type="link" onClick={() => navigate('/networks')}>{t('common.details')}</Button>}>
+      <section className="overview-secondary-grid">
+        <SectionCard title={t('overview.recent')} extra={<Button type="link" onClick={() => navigate('/networks')}>{t('common.details')}</Button>}>
             <Table size="small" pagination={false} rowKey="nwid" dataSource={controller?.networks.slice(0, 6)} onRow={(network) => ({ onClick: () => navigate(`/networks/${network.nwid}/members`) })}
               columns={[
                 { title: t('common.name'), dataIndex: 'name', render: (value: string, row) => <span className="network-cell"><strong>{value || row.nwid}</strong><small>{row.nwid}</small></span> },
                 { title: t('overview.members'), dataIndex: 'memberCount', align: 'right' },
                 { title: t('networks.privacy'), dataIndex: 'private', align: 'right', render: (value: boolean) => <StatusBadge tone={value ? 'success' : 'warning'} label={t(value ? 'common.private' : 'common.public')} /> },
               ]} />
-          </SectionCard>
-        </Col>
-        <Col xs={24} xl={9}>
-          <SectionCard title={<><CloudServerOutlined /> {t('overview.instance')}</>}>
-            <Descriptions column={1} size="small" items={[
-              { key: 'url', label: t('overview.publicUrl'), children: overview?.publicUrl || '—' },
-              { key: 'zt', label: t('overview.ztPort'), children: overview?.zeroTierPort || '—' },
-              { key: 'console', label: t('overview.consolePort'), children: overview?.fileServerPort || '—' },
-              { key: 'ttl', label: t('overview.ttl'), children: `${Math.round((overview?.linkTtlSeconds || 600) / 60)} min` },
-            ]} />
-            <div className="file-summary">{overview?.files.map((file) => <Card size="small" key={file.name}><strong>{file.name}</strong><span>{formatBytes(file.size)}</span></Card>)}</div>
-          </SectionCard>
-        </Col>
-      </Row>
+        </SectionCard>
+        <SectionCard title={<><CloudServerOutlined /> {t('overview.instance')}</>}>
+          <dl className="instance-detail-list">
+            <div><dt>{t('overview.publicUrl')}</dt><dd><Tooltip title={overview?.publicUrl}><span className="breakable-value">{overview?.publicUrl || '—'}</span></Tooltip>{overview?.publicUrl && <CopyButton text={overview.publicUrl} type="text" size="small" aria-label={t('common.copy')} />}</dd></div>
+            <div><dt>{t('overview.ztPort')}</dt><dd className="numeric-value">{overview?.zeroTierPort || '—'}</dd></div>
+            <div><dt>{t('overview.consolePort')}</dt><dd className="numeric-value">{overview?.fileServerPort || '—'}</dd></div>
+            <div><dt>{t('overview.ttl')}</dt><dd className="numeric-value">{Math.round((overview?.linkTtlSeconds || 600) / 60)} min</dd></div>
+          </dl>
+          <div className="file-summary">{overview?.files.map((file) => <Card size="small" key={file.name}><Tooltip title={file.name}><strong>{file.name}</strong></Tooltip><span>{formatBytes(file.size)}</span></Card>)}</div>
+        </SectionCard>
+      </section>
     </div>
   );
 }

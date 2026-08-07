@@ -30,8 +30,8 @@ export function NetworkDetailPage() {
     <div className="page-stack network-detail-page">
       <div className="network-detail-header">
         <Button type="text" icon={<ArrowLeftOutlined />} onClick={() => navigate('/networks')}>{t('common.networks')}</Button>
-        <div className="network-title-row"><div><Space wrap><h1>{network.name || nwid}</h1><StatusBadge tone={network.private ? 'success' : 'warning'} label={t(network.private ? 'common.private' : 'common.public')} /></Space><button type="button" className="copy-id" onClick={() => void navigator.clipboard.writeText(nwid)}><code>{nwid}</code><CopyOutlined /></button></div>
-          <Space><span className="network-summary-line">{t('networks.selectedSummary', { members: query.data.members.length, routes: network.routes?.length || 0, pools: network.ipAssignmentPools?.length || 0 })}</span><Button icon={<ReloadOutlined />} onClick={() => void query.refetch()}>{t('common.refresh')}</Button></Space></div>
+        <div className="network-title-row"><div className="network-title-copy"><Space wrap><h1>{network.name || nwid}</h1><StatusBadge tone={network.private ? 'success' : 'warning'} label={t(network.private ? 'common.private' : 'common.public')} /></Space><button type="button" className="copy-id" aria-label={`${t('common.copy')} ${nwid}`} onClick={() => void navigator.clipboard.writeText(nwid)}><code>{nwid}</code><CopyOutlined /></button></div>
+          <div className="network-detail-actions"><span className="network-summary-line">{t('networks.selectedSummary', { members: query.data.members.length, routes: network.routes?.length || 0, pools: network.ipAssignmentPools?.length || 0 })}</span><Button icon={<ReloadOutlined />} loading={query.isFetching} onClick={() => void query.refetch()}>{t('common.refresh')}</Button></div></div>
       </div>
       <Card bordered={false} className="network-tabs-card"><Tabs activeKey={tabs.some((item) => item.key === tab) ? tab : 'members'} items={tabs} onChange={(key) => navigate(`/networks/${nwid}/${key}`)} /></Card>
       <Routes>

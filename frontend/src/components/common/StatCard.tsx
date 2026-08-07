@@ -7,11 +7,12 @@ interface StatCardProps {
   icon: ReactNode;
   tone?: 'default' | 'success' | 'warning' | 'danger';
   detail?: ReactNode;
+  compact?: boolean;
 }
 
-export function StatCard({ label, value, icon, tone = 'default', detail }: StatCardProps) {
+export function StatCard({ label, value, icon, tone = 'default', detail, compact = true }: StatCardProps) {
   return (
-    <Card className={`stat-card stat-${tone}`} bordered={false}>
+    <Card className={`stat-card stat-${tone}${compact ? ' stat-card-compact' : ''}`} bordered={false}>
       <div className="stat-icon" aria-hidden="true">{icon}</div>
       <div className="stat-copy">
         <span>{label}</span>

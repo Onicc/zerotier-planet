@@ -1,6 +1,6 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
 import { authApi } from '@/api/auth';
-import { getSessionToken, setSessionToken } from '@/api/client';
+import { AUTH_EXPIRED_EVENT, getSessionToken, setSessionToken } from '@/api/client';
 import { queryClient } from '@/api/query';
 import type { AuthSessionPayload } from '@/types/api';
 
@@ -30,6 +30,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setAuthenticated(true);
   }, []);
 
+  const clearSession = useCallback(() => {
+    setSessionToken('');
+    setAuthenticated(false);
+    setMustChangePassword(false);
+    queryClient.clear();
+  }, []);
+
+  useEffect(() => {
+    const handleExpired = () => clearSession();
+    window.addEventListener(AUTH_EXPIRED_EVENT, handleExpired);
+    return () => window.removeEventListener(AUTH_EXPIRED_EVENT, handleExpired);
+  }, [clearSession]);
+
   useEffect(() => {
     let active = true;
     (async () => {
@@ -43,13 +56,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setAuthenticated(auth.authenticated);
         setMustChangePassword(auth.mustChangePassword);
       } catch {
-        setSessionToken('');
+        clearSession();
       } finally {
         if (active) setChecking(false);
       }
     })();
     return () => { active = false; };
-  }, []);
+  }, [clearSession]);
 
   const login = useCallback(async (name: string, password: string) => {
     applySession(await authApi.login(name, password));
@@ -65,11 +78,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const logout = useCallback(async () => {
     try { await authApi.logout(); } catch { /* local sign out still succeeds */ }
-    setSessionToken('');
-    setAuthenticated(false);
-    setMustChangePassword(false);
-    queryClient.clear();
-  }, []);
+    clearSession();
+  }, [clearSession]);
 
   const value = useMemo(() => ({
     checking, authenticated, mustChangePassword, username, login, changePassword, resetPassword, logout,

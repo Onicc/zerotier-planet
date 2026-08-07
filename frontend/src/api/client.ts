@@ -1,4 +1,10 @@
 const TOKEN_KEY = 'ztp_session_token';
+export const AUTH_EXPIRED_EVENT = 'ztp:auth-expired';
+
+function clearStoredToken() {
+  localStorage.removeItem(TOKEN_KEY);
+  sessionStorage.removeItem(TOKEN_KEY);
+}
 
 export class ApiError extends Error {
   status: number;
@@ -15,12 +21,20 @@ export class ApiError extends Error {
 }
 
 export function getSessionToken(): string {
-  return sessionStorage.getItem(TOKEN_KEY) || '';
+  const persistentToken = localStorage.getItem(TOKEN_KEY);
+  if (persistentToken) return persistentToken;
+
+  const legacyToken = sessionStorage.getItem(TOKEN_KEY);
+  if (legacyToken) {
+    localStorage.setItem(TOKEN_KEY, legacyToken);
+    sessionStorage.removeItem(TOKEN_KEY);
+  }
+  return legacyToken || '';
 }
 
 export function setSessionToken(token: string): void {
-  if (token) sessionStorage.setItem(TOKEN_KEY, token);
-  else sessionStorage.removeItem(TOKEN_KEY);
+  clearStoredToken();
+  if (token) localStorage.setItem(TOKEN_KEY, token);
 }
 
 export async function apiRequest<T>(path: string, options: Omit<RequestInit, 'body'> & { auth?: boolean; body?: unknown } = {}): Promise<T> {
@@ -39,6 +53,10 @@ export async function apiRequest<T>(path: string, options: Omit<RequestInit, 'bo
   });
   const payload = await response.json().catch(() => ({}));
   if (!response.ok) {
+    if (auth && response.status === 401 && token) {
+      clearStoredToken();
+      window.dispatchEvent(new CustomEvent(AUTH_EXPIRED_EVENT));
+    }
     throw new ApiError(
       String(payload.error || `Request failed: ${response.status}`),
       response.status,
