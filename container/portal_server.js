@@ -785,8 +785,12 @@ async function createNetwork(body) {
   if (!name) {
     throw Object.assign(new Error('Network name is required'), { statusCode: 400 });
   }
+  if (body.private !== undefined && typeof body.private !== 'boolean') {
+    throw Object.assign(new Error('Network privacy must be a boolean'), { statusCode: 400 });
+  }
+  const isPrivate = body.private ?? true;
   const status = await getControllerStatus();
-  return ztRequest('POST', `/controller/network/${status.address}______`, { name });
+  return ztRequest('POST', `/controller/network/${status.address}______`, { name, private: isPrivate });
 }
 
 async function updateNetwork(nwid, body) {

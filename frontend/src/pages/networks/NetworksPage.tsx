@@ -23,7 +23,7 @@ export function NetworksPage() {
   const [form] = Form.useForm();
 
   const createMutation = useMutation({
-    mutationFn: (name: string) => consoleApi.createNetwork(name),
+    mutationFn: (values: { name: string; private: boolean }) => consoleApi.createNetwork(values),
     onSuccess: async (payload) => {
       await queryClient.invalidateQueries({ queryKey: queryKeys.controller });
       setCreateOpen(false); form.resetFields(); void message.success(t('message.created'));
@@ -73,10 +73,10 @@ export function NetworksPage() {
             </Card>
           </button>;
         })}</div>}
-      <Modal title={t('networks.createNetwork')} open={createOpen} onCancel={() => setCreateOpen(false)} okText={t('common.create')} confirmLoading={createMutation.isPending}
-        onOk={() => void form.validateFields().then(({ name }) => createMutation.mutate(name))}>
-        <Form form={form} layout="vertical"><Form.Item name="name" label={t('networks.newName')} rules={[{ required: true, whitespace: true, message: t('validation.required') }]}><Input autoFocus maxLength={128} /></Form.Item>
-          <Form.Item label={t('networks.privacy')}><Radio checked disabled>{t('common.private')}</Radio></Form.Item></Form>
+      <Modal title={t('networks.createNetwork')} open={createOpen} onCancel={() => { setCreateOpen(false); form.resetFields(); }} okText={t('common.create')} confirmLoading={createMutation.isPending}
+        onOk={() => void form.validateFields().then((values) => createMutation.mutate(values))}>
+        <Form form={form} layout="vertical" initialValues={{ private: true }}><Form.Item name="name" label={t('networks.newName')} rules={[{ required: true, whitespace: true, message: t('validation.required') }]}><Input autoFocus maxLength={128} /></Form.Item>
+          <Form.Item name="private" label={t('networks.privacy')}><Radio.Group className="privacy-options"><Radio value>{t('common.private')}<small>{t('networks.privateCreateCopy')}</small></Radio><Radio value={false}>{t('common.public')}<small>{t('networks.publicCreateCopy')}</small></Radio></Radio.Group></Form.Item></Form>
       </Modal>
     </div>
   );

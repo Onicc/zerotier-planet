@@ -38,7 +38,8 @@ export const resources = {
       },
       networks: {
         createNetwork: 'Create network', newName: 'Network name', searchPlaceholder: 'Search name or Network ID', privacy: 'Privacy', sort: 'Sort',
-        sortName: 'Name', sortMembers: 'Member count', empty: 'No networks yet', emptyCopy: 'Create a private network to start managing members and routes.',
+        privateCreateCopy: 'Require explicit authorization for every new member.', publicCreateCopy: 'Anyone with the Network ID can join without approval.',
+        sortName: 'Name', sortMembers: 'Member count', empty: 'No networks yet', emptyCopy: 'Create a network to start managing members and routes.',
         membersCount: '{{count}} member', membersCount_other: '{{count}} members', authorizedCount: '{{count}} authorized',
         memberTab: 'Members', basicsTab: 'Configuration', routesTab: 'Routes & pools', dnsTab: 'DNS', rawTab: 'Raw JSON',
         memberSearch: 'Search member name, ID, or IP', authorization: 'Authorization', connectivity: 'Connectivity', memberId: 'Member ID', ipAssignments: 'IP assignments',
@@ -112,7 +113,7 @@ export const resources = {
         controllerReady: '内置控制器响应正常。', controllerMissing: '内置控制器不可用。', networkReady: '已有 {{count}} 个网络目标可用。', networkReady_other: '已有 {{count}} 个网络目标可用。', networkMissing: '接入客户端前请先创建网络。',
       },
       networks: {
-        createNetwork: '创建网络', newName: '网络名称', searchPlaceholder: '搜索名称或 Network ID', privacy: '隐私类型', sort: '排序', sortName: '名称', sortMembers: '成员数', empty: '暂无网络', emptyCopy: '创建一个私有网络以开始管理成员和路由。',
+        createNetwork: '创建网络', newName: '网络名称', searchPlaceholder: '搜索名称或 Network ID', privacy: '隐私类型', sort: '排序', privateCreateCopy: '每个新成员都必须经过明确授权。', publicCreateCopy: '任何知道 Network ID 的设备无需审批即可加入。', sortName: '名称', sortMembers: '成员数', empty: '暂无网络', emptyCopy: '创建一个网络以开始管理成员和路由。',
         membersCount: '{{count}} 个成员', membersCount_other: '{{count}} 个成员', authorizedCount: '{{count}} 个已授权', memberTab: '成员', basicsTab: '配置', routesTab: '路由与地址池', dnsTab: 'DNS', rawTab: '原始 JSON',
         memberSearch: '搜索成员名称、ID 或 IP', authorization: '授权状态', connectivity: '连接状态', memberId: '成员 ID', ipAssignments: 'IP 分配', authorized: '已授权', pending: '待授权', bridge: '桥接', friendlyName: '备注名', addIp: '添加 IP 地址', noMembers: '此网络还没有成员加入。',
         deleteMemberTitle: '移除此成员？', deleteMemberBody: '该设备将从当前网络中移除。', basics: '网络基础设置', addressAssignment: '地址分配', easySetup: '快捷设置', easyCopy: '同时配置主要托管路由和 IPv4 地址池。',

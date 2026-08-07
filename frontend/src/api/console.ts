@@ -18,8 +18,8 @@ export const consoleApi = {
   overview: () => apiRequest<Overview>('/api/overview'),
   controller: () => apiRequest<ControllerStatus>('/api/controller/status'),
   network: (nwid: string) => apiRequest<NetworkBundle>(networkPath(nwid)),
-  createNetwork: (name: string) => apiRequest<{ network: NetworkSummary }>('/api/controller/networks', {
-    method: 'POST', body: { name },
+  createNetwork: (input: { name: string; private: boolean }) => apiRequest<{ network: NetworkSummary }>('/api/controller/networks', {
+    method: 'POST', body: input,
   }),
   patchNetwork: (nwid: string, body: Partial<NetworkSummary>) => apiRequest<NetworkBundle>(networkPath(nwid), {
     method: 'PATCH', body,

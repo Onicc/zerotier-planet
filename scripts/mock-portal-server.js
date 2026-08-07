@@ -311,12 +311,15 @@ async function handleController(req, res, parsedUrl, body) {
       return sendJson(res, 200, { networks: mockState.networks.map(publicNetwork) });
     }
     if (req.method === 'POST') {
+      if (body.private !== undefined && typeof body.private !== 'boolean') {
+        return sendJson(res, 400, { error: 'Network privacy must be a boolean' });
+      }
       const nwid = nextNetworkId();
       const network = {
         nwid,
         id: nwid,
         name: String(body.name || 'New network').trim(),
-        private: true,
+        private: body.private ?? true,
         mtu: 2800,
         routes: [],
         ipAssignmentPools: [],
