@@ -28,8 +28,7 @@ export const resources = {
         settingsTitle: 'Console settings', settingsSubtitle: 'Appearance, instance information, and account security.',
       },
       overview: {
-        planet: 'Planet file', api: 'Controller API', networkCount: 'Networks', members: 'Members', command: 'Operations at a glance',
-        commandCopy: 'Resolve pending devices, confirm deployment readiness, and continue directly to the next task.',
+        planet: 'Planet file', api: 'Controller API', networkCount: 'Networks', members: 'Members',
         readiness: 'Deployment readiness', pending: 'Pending authorization', authorized: 'Authorized members', routes: 'Managed routes', pools: 'Assignment pools',
         recent: 'Network inventory', instance: 'Instance details', publicUrl: 'Public console URL', ztPort: 'ZeroTier port', consolePort: 'Console port', ttl: 'Default link lifetime',
         history: 'Estate activity', historyHint: 'Recent values sampled while this console is open.', noHistory: 'Trend data appears after the next refresh.',
@@ -107,7 +106,7 @@ export const resources = {
         deliveryTitle: '客户端分发', deliverySubtitle: '生成临时 Planet 下载与安装命令。', guideTitle: '操作指南', guideSubtitle: '按照完整流程完成部署和故障排查。', settingsTitle: '控制台设置', settingsSubtitle: '管理外观、实例信息和账号安全。',
       },
       overview: {
-        planet: 'Planet 文件', api: '控制器 API', networkCount: '网络', members: '成员', command: '运维工作台', commandCopy: '处理待授权设备、确认部署就绪状态，并直接进入下一项任务。', readiness: '部署就绪检查',
+        planet: 'Planet 文件', api: '控制器 API', networkCount: '网络', members: '成员', readiness: '部署就绪检查',
         pending: '待授权成员', authorized: '已授权成员', routes: '托管路由', pools: '地址池', recent: '网络清单', instance: '实例详情', publicUrl: '控制台公网 URL', ztPort: 'ZeroTier 端口', consolePort: '控制台端口', ttl: '默认链接有效期',
         history: '环境活动趋势', historyHint: '显示本次打开控制台期间采样的最近数据。', noHistory: '下次刷新后将显示趋势数据。', planetReady: '可以生成签名下载链接。', planetMissing: '分发客户端前请先生成 Planet 文件。',
         controllerReady: '内置控制器响应正常。', controllerMissing: '内置控制器不可用。', networkReady: '已有 {{count}} 个网络目标可用。', networkReady_other: '已有 {{count}} 个网络目标可用。', networkMissing: '接入客户端前请先创建网络。',

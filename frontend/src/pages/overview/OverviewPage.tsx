@@ -62,11 +62,6 @@ export function OverviewPage() {
       <PageHeader title={t('page.overviewTitle')} subtitle={t('page.overviewSubtitle')} eyebrow={t('nav.operations')}
         actions={<Space wrap><Button icon={<DownloadOutlined />} onClick={() => navigate('/delivery')}>{t('common.delivery')}</Button><Button type="primary" icon={<GlobalOutlined />} onClick={() => navigate('/networks')}>{t('common.networks')}</Button></Space>} />
 
-      <section className="command-banner">
-        <div><span>{t('overview.command')}</span><strong>{t('overview.commandCopy')}</strong></div>
-        <Space wrap><StatusBadge tone={summary.pending ? 'warning' : 'success'} label={`${summary.pending} ${t('overview.pending')}`} /><StatusBadge tone="processing" label={`${controller?.networks.length || 0} ${t('common.networks')}`} /></Space>
-      </section>
-
       <section className="stats-grid">
         <StatCard label={t('overview.planet')} value={t(overview?.hasPlanet ? 'common.ready' : 'common.missing')} icon={<DeploymentUnitOutlined />} tone={overview?.hasPlanet ? 'success' : 'danger'} detail={overview?.hasPlanet ? t('overview.planetReady') : t('overview.planetMissing')} />
         <StatCard label={t('overview.api')} value={t(controller?.status.online ? 'common.online' : 'common.available')} icon={<ApiOutlined />} tone={controller?.status ? 'success' : 'danger'} detail={controller?.status.address || '—'} />
